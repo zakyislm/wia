@@ -9,26 +9,28 @@ Repo ini bakal pake branching biar gampang ngelola:
 *   **`master`** Branch primary buat *ready prod* bakal nampilin kodingan yg udh ready buat kumpul/fix/sepakt.
 *   **Branch tiap orang:** Setiap org punya branch kerja mandiri pke penamaan terserah (wajib 1 doang):
     ```
-    [nama-branch-lu]/[slug]
+    [nama-branch-lu]
     ```
-    *Contoh: `jek/fitur-auth`, `alex/tampilan-dashboard`*
+    *Contoh: branch `jek` atau `alex`*
 
 ## Flow
 
 Buat masukin hal yg berubah ke branch utama, ikutin tutor ini:
 
-1.  **Pull Paling Awal:** Pastikan branch lokal kamu sudah mengambil pembaruan terbaru dari master.
+1.  **Pull Paling Awal:** Pastikan branch kamu selalu dapet update-an terbaru dari master sebelum mulai ngoding baru, biar nggak bentrok:
     ```bash
-    git checkout master
-    git pull origin master
     git checkout [branch-kamu]
-    git merge master
+    git pull origin master
     ```
-2.  **Kembangkan Fitur:** Selesaikan tugas/fitur di branch masing-masing.
-3.  **Ajukan Pull Request (PR):** Buka PR dari branch fitur kamu ke branch `master`.
-4.  **Proses Penggabungan (Merge):** 
+2.  **Kembangkan Fitur:** Selesaikan tugas/fitur di branch masing-masing. Jangan lupa lakukan `git add` dan `git commit` di terminal lokal kamu.
+3.  **Push ke GitHub:** Setelah selesai commit di laptop, kirim kodingan branch kamu ke GitHub:
+    ```bash
+    git push origin [branch-kamu]
+    ```
+4.  **Ajukan Pull Request (PR):** Buka repositori di halaman GitHub, lalu klik tombol **Create Pull Request** dari branch kamu ke branch `master`.
+5.  **Proses Penggabungan (Merge):** 
     *   Setiap PR wajib ditinjau (*review*) terlebih dahulu oleh Ketua Tim.
-    *   Penggabungan kode ke `master` wajib menggunakan opsi **Squash and Merge** agar riwayat komit utama tetap bersih, ringkas, dan mudah dilacak.
+    *   Penggabungan kode ke `master` bakal di-execute pake opsi **Squash and Merge** biar riwayat komit utama tetep bersih, ringkas, dan gampang dilacak.
 
 ## Format
 
@@ -38,4 +40,4 @@ Buat masukin hal yg berubah ke branch utama, ikutin tutor ini:
     ```
     [fitur/bug/refactor]: deskripsi singkat perubahan
     ```
-    *Contoh: `[fitur]: integrasi komponen navbar responsif`*
+    *Contoh: `[fitur]: integrasi komponen navbar responsif` atau `[fitur]: auth fitur dan oauth integrasi`*
