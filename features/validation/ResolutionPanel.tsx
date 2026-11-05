@@ -1,16 +1,25 @@
+/* eslint-disable @next/next/no-img-element -- Session-only evidence previews. */
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CheckCircle2, AlertCircle, Clock3 } from "lucide-react";
 import { useDemo } from "@/features/auth/DemoProvider";
-import { resolutionResult } from "@/lib/validation";
+import { photoError, resolutionResult } from "@/lib/validation";
 import { Button } from "@/components/ui/Button";
 import type { Post } from "@/types/models";
-import { people } from "@/mocks/data";
 
 export function ResolutionPanel({ post }: { post: Post }) {
-  const { updatePost, user } = useDemo();
+  const { people, updatePost, user } = useDemo();
   const [now, setNow] = useState(() => Date.now());
   const [argument, setArgument] = useState("");
+  const [images, setImages] = useState<string[]>([]);
+  const [photoMessage, setPhotoMessage] = useState("");
+  const pendingPhotos = useRef<string[]>([]);
+  useEffect(
+    () => () => {
+      pendingPhotos.current.forEach((url) => URL.revokeObjectURL(url));
+    },
+    [],
+  );
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
@@ -69,6 +78,17 @@ export function ResolutionPanel({ post }: { post: Post }) {
               }
             </p>
             <p>{resolution.content}</p>
+            {!!resolution.images.length && (
+              <div className="photo-grid">
+                {resolution.images.map((src, index) => (
+                  <img
+                    key={src}
+                    src={src}
+                    alt={`Bukti penyelesaian ${index + 1}`}
+                  />
+                ))}
+              </div>
+            )}
             <p className="small">
               Berakhir:{" "}
               {new Date(resolution.deadline).toLocaleString("id-ID", {
@@ -154,7 +174,7 @@ export function ResolutionPanel({ post }: { post: Post }) {
           className="resolution-form"
           onSubmit={(event) => {
             event.preventDefault();
-            if (!argument.trim() || !user) return;
+            if ((!argument.trim() && !images.length) || !user) return;
             updatePost(post.localKey, (current) => {
               const last = current.resolutions.at(-1);
               if (last && resolutionResult(last) !== "failed") return current;
@@ -166,8 +186,8 @@ export function ResolutionPanel({ post }: { post: Post }) {
                     id: "",
                     localKey: crypto.randomUUID(),
                     agencyKey: user.localKey,
-                    content: argument.trim(),
-                    images: [],
+                    content: argument.trim() || "Pengajuan bukti penyelesaian.",
+                    images,
                     deadline: Date.now() + 72 * 3600000,
                     agree: 0,
                     disagree: 0,
@@ -177,23 +197,76 @@ export function ResolutionPanel({ post }: { post: Post }) {
               };
             });
             setArgument("");
+            setImages([]);
+            pendingPhotos.current = [];
           }}
         >
           <label>
-            Argumen penyelesaian *
+            Argumen penyelesaian (atau lampirkan bukti)
             <textarea
-              required
               rows={4}
               value={argument}
               onChange={(event) => setArgument(event.target.value)}
               placeholder="Jelaskan tindakan, unit penanggung jawab dan waktu pelaksanaan."
             />
           </label>
+          <label>
+            Foto bukti penyelesaian
+            <input
+              type="file"
+              multiple
+              accept="image/jpeg,image/png,image/webp"
+              onChange={(event) => {
+                const files = Array.from(event.target.files ?? []);
+                const message = photoError(files, images.length);
+                if (message) setPhotoMessage(message);
+                else {
+                  const urls = files.map((file) => URL.createObjectURL(file));
+                  pendingPhotos.current.push(...urls);
+                  setImages((current) => [...current, ...urls]);
+                  setPhotoMessage("");
+                }
+                event.target.value = "";
+              }}
+            />
+          </label>
+          {!!images.length && (
+            <div className="photo-grid">
+              {images.map((src, index) => (
+                <figure key={src}>
+                  <img src={src} alt={`Draf bukti ${index + 1}`} />
+                  <button
+                    type="button"
+                    aria-label={`Hapus bukti ${index + 1}`}
+                    onClick={() => {
+                      URL.revokeObjectURL(src);
+                      setImages((current) =>
+                        current.filter((url) => url !== src),
+                      );
+                    }}
+                  >
+                    ×
+                  </button>
+                </figure>
+              ))}
+            </div>
+          )}
+          {photoMessage && (
+            <p className="error" role="alert">
+              {photoMessage}
+            </p>
+          )}
+          <p className="small muted">
+            Maksimal 6 foto JPG/PNG/WebP, 10 MB per foto. Pratinjau lokal, tanpa
+            upload.
+          </p>
           <p className="muted small">
             Pengajuan memulai validasi 72 jam, bukan langsung menutup laporan.
             Satu pengajuan aktif per laporan.
           </p>
-          <Button type="submit">Ajukan penyelesaian</Button>
+          <Button type="submit" disabled={!argument.trim() && !images.length}>
+            Ajukan penyelesaian
+          </Button>
         </form>
       )}
     </section>

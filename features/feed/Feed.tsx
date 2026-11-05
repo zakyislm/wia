@@ -25,9 +25,10 @@ export function Feed() {
           (post) => !post.anonymous && following.includes(post.authorKey),
         )
       : posts;
+  const readable = visible.filter((post) => !post.hidden && !post.isDeleted);
   return (
     <ProductShell title="Beranda">
-      <section className="feed-surface">
+      <section className="feed-surface home-feed">
         <div className="feed-tabs" role="tablist" aria-label="Pilihan feed">
           {[
             { key: "foryou", label: "Untuk Kamu" },
@@ -45,7 +46,7 @@ export function Feed() {
           ))}
         </div>
         <div className="compact-composer">
-          <Avatar name={user?.name ?? "A"} />
+          <Avatar name={user?.name ?? "A"} src={user?.image} />
           <button onClick={() => setComposer(true)}>
             Ada cerita apa hari ini?
           </button>
@@ -53,10 +54,10 @@ export function Feed() {
             Post
           </Button>
         </div>
-        {visible.map((post) => (
+        {readable.map((post) => (
           <PostCard key={post.localKey} post={post} />
         ))}
-        {!visible.length && (
+        {!readable.length && (
           <div className="empty-state">
             <h2>Belum ada yang kamu ikuti</h2>
             <p>

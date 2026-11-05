@@ -7,6 +7,8 @@ export interface Person {
   username: string;
   role: Role;
   bio: string;
+  region?: string;
+  image?: string;
 }
 export interface Reply {
   id: "";
@@ -46,6 +48,9 @@ export interface Post {
   upvotesCount: number;
   vote: Vote;
   reposted: boolean;
+  saved?: boolean;
+  hidden?: boolean;
+  isDeleted?: boolean;
   replies: Reply[];
   resolutions: Resolution[];
 }

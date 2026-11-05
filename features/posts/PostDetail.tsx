@@ -14,8 +14,10 @@ export function PostDetail({
   postKey: string;
   branchKey?: string;
 }) {
-  const { posts } = useDemo();
-  const post = posts.find((item) => item.localKey === postKey);
+  const { posts, people } = useDemo();
+  const post = posts.find(
+    (item) => item.localKey === postKey && !item.isDeleted,
+  );
   return (
     <ProductShell title={branchKey ? "Cabang percakapan" : "Postingan"}>
       <section className="feed-surface">
@@ -32,6 +34,28 @@ export function PostDetail({
             {post.kind === "report" && !branchKey && (
               <ResolutionPanel post={post} />
             )}
+            {branchKey &&
+              post.replies.find((reply) => reply.localKey === branchKey) && (
+                <div className="section-pad branch-context">
+                  <strong>
+                    {
+                      people.find(
+                        (person) =>
+                          person.localKey ===
+                          post.replies.find(
+                            (reply) => reply.localKey === branchKey,
+                          )?.authorKey,
+                      )?.name
+                    }
+                  </strong>
+                  <p>
+                    {
+                      post.replies.find((reply) => reply.localKey === branchKey)
+                        ?.content
+                    }
+                  </p>
+                </div>
+              )}
             <CommentThread post={post} parentKey={branchKey} />
           </>
         ) : (

@@ -1,7 +1,6 @@
 "use client";
 import Link from "next/link";
 import { useState } from "react";
-import { people } from "@/mocks/data";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { useDemo } from "@/features/auth/DemoProvider";
@@ -18,7 +17,7 @@ export function CommentThread({
   depth?: number;
   onReply?: (key: string) => void;
 }) {
-  const { user, updatePost } = useDemo();
+  const { people, user, updatePost } = useDemo();
   const [text, setText] = useState("");
   const [replyTo, setReplyTo] = useState<string | undefined>();
   const [collapsed, setCollapsed] = useState<string[]>([]);
@@ -107,10 +106,12 @@ export function CommentThread({
           >
             <div className="comment-body">
               <div className="post-meta">
-                <Avatar name={author.name} />
+                <Avatar name={author.name} src={author.image} />
                 <div>
                   <strong>
-                    {author.name}
+                    <Link href={`/profile/${author.localKey}`}>
+                      {author.name}
+                    </Link>
                     {author.role === "GOVERNMENT" ? " ✓" : ""}
                   </strong>
                   <small>@{author.username}</small>

@@ -5,12 +5,11 @@ import { ImagePlus, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Dialog } from "@/components/ui/Dialog";
 import { Button } from "@/components/ui/Button";
-import { people } from "@/mocks/data";
 import { useDemo } from "@/features/auth/DemoProvider";
 import { photoError } from "@/lib/validation";
 
 export function Composer({ onClose }: { onClose: () => void }) {
-  const { user, setPosts } = useDemo();
+  const { people, user, setPosts } = useDemo();
   const router = useRouter();
   const [kind, setKind] = useState<"general" | "report">("general");
   const [content, setContent] = useState("");

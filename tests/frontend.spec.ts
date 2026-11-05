@@ -160,6 +160,45 @@ test("responsive themes and screenshot review", async ({ page }) => {
           () => document.documentElement.scrollWidth <= innerWidth,
         ),
       ).toBe(true);
+      const presentation = await page.locator(".home-feed").evaluate((feed) => {
+        const card = feed.querySelector(".post-card")!;
+        const name = card
+          .querySelector(".post-meta > div")!
+          .getBoundingClientRect();
+        const content = card
+          .querySelector(".post-content")!
+          .getBoundingClientRect();
+        const actions = card
+          .querySelector(".post-actions")!
+          .getBoundingClientRect();
+        const frame = getComputedStyle(
+          feed.closest(".reading-column")!,
+          "::before",
+        );
+        const composer = getComputedStyle(
+          feed.querySelector(".compact-composer")!,
+        );
+        return {
+          nameX: name.x,
+          contentX: content.x,
+          actionsX: actions.x,
+          background: getComputedStyle(feed).backgroundColor,
+          canvas: getComputedStyle(feed.closest(".product")!).backgroundColor,
+          framePosition: frame.position,
+          frameLeft: parseFloat(frame.left),
+          frameWidth: parseFloat(frame.width),
+          feedLeft: feed.getBoundingClientRect().left,
+          feedWidth: feed.getBoundingClientRect().width,
+          composerDivider: composer.borderBottomWidth,
+        };
+      });
+      expect(presentation.contentX).toBeCloseTo(presentation.nameX);
+      expect(presentation.actionsX).toBeCloseTo(presentation.contentX);
+      expect(presentation.background).toBe(presentation.canvas);
+      expect(presentation.framePosition).toBe("fixed");
+      expect(presentation.frameLeft).toBeCloseTo(presentation.feedLeft);
+      expect(presentation.frameWidth).toBeCloseTo(presentation.feedWidth);
+      expect(presentation.composerDivider).toBe("1px");
       await page.screenshot({
         path: `test-results/home-${width}-${theme}.png`,
       });
@@ -167,6 +206,30 @@ test("responsive themes and screenshot review", async ({ page }) => {
         await page.getByRole("button", { name: "Ganti tema" }).click();
     }
   }
+});
+
+test("home frame stays fixed while posts scroll", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.getByRole("button", { name: "Ganti tema" }).click();
+  const card = page.locator(".post-card").first();
+  const before = await card.boundingBox();
+  await page.evaluate(() => {
+    document.documentElement.style.scrollBehavior = "auto";
+    window.scrollTo(0, 360);
+  });
+  await expect
+    .poll(async () => (await card.boundingBox())!.y)
+    .toBeLessThan(before!.y - 300);
+  expect((await page.locator(".page-header").boundingBox())!.y).toBe(0);
+  expect(
+    await page
+      .locator(".home-feed")
+      .evaluate(
+        (feed) =>
+          getComputedStyle(feed.closest(".reading-column")!, "::before").top,
+      ),
+  ).toBe("80px");
+  await page.screenshot({ path: "test-results/home-frame-scrolled.png" });
 });
 
 test("comment connectors join avatars and stop at the last sibling", async ({

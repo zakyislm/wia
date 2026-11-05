@@ -1,6 +1,7 @@
 /* eslint-disable @next/next/no-img-element -- Session-only blob URLs cannot use server image optimization. */
 "use client";
 import Link from "next/link";
+import { PostMenu } from "./PostMenu";
 import {
   ArrowUp,
   ArrowDown,
@@ -12,7 +13,6 @@ import {
 } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
-import { people } from "@/mocks/data";
 import { resolutionResult } from "@/lib/validation";
 import { useDemo } from "@/features/auth/DemoProvider";
 import type { Post } from "@/types/models";
@@ -25,7 +25,7 @@ export function PostCard({
   post: Post;
   detail?: boolean;
 }) {
-  const { updatePost } = useDemo();
+  const { people, updatePost } = useDemo();
   const [message, setMessage] = useState("");
   const author = people.find((person) => person.localKey === post.authorKey)!;
   const resolution = post.resolutions.at(-1);
@@ -51,10 +51,14 @@ export function PostCard({
   return (
     <article className="post-card">
       <header className="post-meta">
-        <Avatar name={name} />
+        <Avatar name={name} src={post.anonymous ? undefined : author.image} />
         <div>
           <strong>
-            {name}
+            {post.anonymous ? (
+              name
+            ) : (
+              <Link href={`/profile/${author.localKey}`}>{name}</Link>
+            )}
             {!post.anonymous && author.role === "GOVERNMENT" ? " ✓" : ""}
           </strong>
           <small>
@@ -77,6 +81,7 @@ export function PostCard({
             )}
           </span>
         )}
+        <PostMenu post={post} />
       </header>
       {detail ? (
         <div className="post-content">{text}</div>

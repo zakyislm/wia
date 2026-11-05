@@ -6,10 +6,13 @@ import {
   useRef,
   type ReactNode,
 } from "react";
-import { people, seedPosts } from "@/mocks/data";
-import type { Post } from "@/types/models";
+import { people as seedPeople, seedPosts } from "@/mocks/data";
+import { seedWorkspace } from "@/features/workspace/state";
+import type { Person, Post } from "@/types/models";
 
 function useDemoState() {
+  const [workspace, setWorkspace] = useState(seedWorkspace);
+  const [people, setPeople] = useState<Person[]>(seedPeople);
   const feedScroll = useRef(0);
   const [theme, setTheme] = useState<"light" | "dark" | "system">("system");
   const [posts, setPosts] = useState<Post[]>([]);
@@ -17,19 +20,47 @@ function useDemoState() {
   const [following, setFollowing] = useState<string[]>([]);
   const user = people.find((person) => person.localKey === userKey);
   function login(key: string) {
+    people.forEach((person) => {
+      if (person.image) URL.revokeObjectURL(person.image);
+    });
+    setPeople(seedPeople);
     feedScroll.current = 0;
     setUserKey(key);
     setPosts(seedPosts());
     setFollowing([]);
+    setWorkspace(seedWorkspace());
   }
   function logout() {
+    people.forEach((person) => {
+      if (person.image) URL.revokeObjectURL(person.image);
+    });
+    setPeople(seedPeople);
     feedScroll.current = 0;
     posts
-      .flatMap((post) => post.images)
+      .flatMap((post) => [
+        ...post.images,
+        ...post.resolutions.flatMap((item) => item.images),
+      ])
       .forEach((url) => URL.revokeObjectURL(url));
     setUserKey(null);
     setPosts([]);
     setFollowing([]);
+    setWorkspace(seedWorkspace());
+  }
+  function register(name: string, username: string) {
+    const person: Person = {
+      id: "",
+      localKey: crypto.randomUUID(),
+      name,
+      username,
+      role: "USER",
+      bio: "",
+    };
+    setPeople([...seedPeople, person]);
+    setUserKey(person.localKey);
+    setPosts(seedPosts());
+    setFollowing([]);
+    setWorkspace(seedWorkspace());
   }
   function updatePost(key: string, update: (post: Post) => Post) {
     setPosts((current) =>
@@ -37,6 +68,11 @@ function useDemoState() {
     );
   }
   return {
+    workspace,
+    setWorkspace,
+    register,
+    people,
+    setPeople,
     feedScroll,
     theme,
     setTheme,

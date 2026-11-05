@@ -10,43 +10,50 @@ import {
   ListTree,
   Settings,
   Plus,
-  Sun,
-  Moon,
   LogOut,
 } from "lucide-react";
 import { useDemo } from "@/features/auth/DemoProvider";
 import { Login } from "@/features/auth/Login";
 import { Composer } from "@/features/posts/Composer";
 import { Avatar } from "@/components/ui/Avatar";
+import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { Button } from "@/components/ui/Button";
-import { people } from "@/mocks/data";
 
 const destinations = [
   { label: "Beranda", icon: Home, href: "/home" },
-  { label: "Jelajah", icon: Search },
-  { label: "Obrolan", icon: MessagesSquare },
-  { label: "Notifikasi", icon: Bell },
-  { label: "Profil", icon: UserRound },
-  { label: "Timeline Kinerja", icon: ListTree },
-  { label: "Pengaturan", icon: Settings },
+  { label: "Jelajah", icon: Search, href: "/explore" },
+  { label: "Obrolan", icon: MessagesSquare, href: "/messages" },
+  { label: "Notifikasi", icon: Bell, href: "/notifications" },
+  { label: "Profil", icon: UserRound, href: "/profile" },
+  { label: "Timeline Kinerja", icon: ListTree, href: "/timeline" },
+  { label: "Pengaturan", icon: Settings, href: "/settings" },
 ];
 export function ProductShell({
   title,
   children,
+  active = "home",
+  wide = false,
 }: {
   title: string;
   children: ReactNode;
+  active?:
+    | "home"
+    | "explore"
+    | "timeline"
+    | "profile"
+    | "messages"
+    | "notifications"
+    | "settings"
+    | "agency";
+  wide?: boolean;
 }) {
-  const { user, logout, following, setFollowing, theme, setTheme } = useDemo();
+  const { people, user, logout, following, setFollowing, theme } = useDemo();
   const [composer, setComposer] = useState(false);
 
-  const [notice, setNotice] = useState("");
   if (!user) return <Login />;
-  const unavailable = (label: string) =>
-    setNotice(`${label} akan tersedia pada tahap berikutnya.`);
   return (
     <div
-      className={`product ${theme === "dark" ? "theme-dark" : theme === "light" ? "theme-light" : "theme-system"}`}
+      className={`product ${theme === "dark" ? "theme-dark" : theme === "light" ? "theme-light" : "theme-system"} ${wide ? "product--messages" : ""}`}
     >
       <a className="skip-link" href="#main-content">
         Lewati navigasi
@@ -60,23 +67,25 @@ export function ProductShell({
             href ? (
               <Link
                 key={label}
+                aria-label={label}
                 href={href}
-                aria-current={href === "/home" ? "page" : undefined}
-                className={`nav-item ${href === "/home" ? "active" : ""} nav-group-${index}`}
+                aria-current={href === `/${active}` ? "page" : undefined}
+                className={`nav-item ${href === `/${active}` ? "active" : ""} nav-group-${index}`}
               >
                 <Icon />
                 <span>{label}</span>
               </Link>
-            ) : (
-              <button
-                key={label}
-                className={`nav-item nav-group-${index}`}
-                onClick={() => unavailable(label)}
-              >
-                <Icon />
-                <span>{label}</span>
-              </button>
-            ),
+            ) : null,
+          )}
+          {user.role === "GOVERNMENT" && (
+            <Link
+              className={`nav-item ${active === "agency" ? "active" : ""}`}
+              href="/agency"
+              aria-label="Laporan Instansi"
+            >
+              <ListTree />
+              <span>Laporan Instansi</span>
+            </Link>
           )}
         </nav>
         <Button className="compose-nav" onClick={() => setComposer(true)}>
@@ -84,7 +93,7 @@ export function ProductShell({
           <span>Buat Postingan</span>
         </Button>
         <div className="sidebar-account">
-          <Avatar name={user.name} />
+          <Avatar name={user.name} src={user.image} />
           <div>
             <strong>{user.name}</strong>
             <small>@{user.username}</small>
@@ -98,42 +107,16 @@ export function ProductShell({
         <header className="page-header">
           <h1>{title}</h1>
           <div>
-            <Button
-              variant="ghost"
-              className="mobile-bell"
+            <Link
+              className="button button--ghost mobile-bell"
+              href="/notifications"
               aria-label="Notifikasi"
-              onClick={() => unavailable("Notifikasi")}
             >
               <Bell />
-            </Button>
-            <Button
-              variant="ghost"
-              aria-label="Ganti tema"
-              onClick={() =>
-                setTheme(
-                  theme === "dark" ||
-                    (theme === "system" &&
-                      window.matchMedia("(prefers-color-scheme: dark)").matches)
-                    ? "light"
-                    : "dark",
-                )
-              }
-            >
-              {theme === "dark" ? <Moon /> : <Sun />}
-            </Button>
+            </Link>
+            <ThemeToggle />
           </div>
         </header>
-        {notice && (
-          <div role="status" className="notice">
-            {notice}
-            <button
-              aria-label="Tutup pemberitahuan"
-              onClick={() => setNotice("")}
-            >
-              ×
-            </button>
-          </div>
-        )}
         {children}
         <Button
           className="floating-compose"
@@ -144,10 +127,10 @@ export function ProductShell({
         </Button>
       </main>
       <aside className="support-column">
-        <button className="search-box" onClick={() => unavailable("Pencarian")}>
+        <Link className="search-box" href="/explore">
           <Search />
           Cari di KAVI
-        </button>
+        </Link>
         <section className="suggestions">
           <h2>Temukan suara baru</h2>
           {people
@@ -156,10 +139,12 @@ export function ProductShell({
             )
             .map((person) => (
               <div className="suggestion" key={person.localKey}>
-                <Avatar name={person.name} />
+                <Avatar name={person.name} src={person.image} />
                 <div>
                   <strong>
-                    {person.name}
+                    <Link href={`/profile/${person.localKey}`}>
+                      {person.name}
+                    </Link>
                     {person.role === "GOVERNMENT" ? " ✓" : ""}
                   </strong>
                   <small>{person.bio}</small>
@@ -180,6 +165,9 @@ export function ProductShell({
             ))}
         </section>
         <p className="footer-note">
+          <Link href="/settings">Pengaturan</Link> ·{" "}
+          <Link href="/help">Bantuan</Link>
+          <br />
           KAVI · Ruang bersama untuk perubahan.
           <br />© 2026 KAVI · Konten contoh
         </p>
@@ -188,14 +176,19 @@ export function ProductShell({
         <Link
           href="/home"
           aria-label="Beranda"
-          aria-current="page"
-          className="active"
+          aria-current={active === "home" ? "page" : undefined}
+          className={active === "home" ? "active" : ""}
         >
           <Home />
         </Link>
-        <button aria-label="Jelajah" onClick={() => unavailable("Jelajah")}>
+        <Link
+          href="/explore"
+          aria-label="Jelajah"
+          aria-current={active === "explore" ? "page" : undefined}
+          className={active === "explore" ? "active" : ""}
+        >
           <Search />
-        </button>
+        </Link>
         <button
           className="island-compose"
           aria-label="Buat postingan"
@@ -203,18 +196,30 @@ export function ProductShell({
         >
           <Plus />
         </button>
-        <button aria-label="Obrolan" onClick={() => unavailable("Obrolan")}>
+        <Link
+          href="/messages"
+          aria-label="Obrolan"
+          aria-current={active === "messages" ? "page" : undefined}
+          className={active === "messages" ? "active" : ""}
+        >
           <MessagesSquare />
-        </button>
-        <button
+        </Link>
+        <Link
+          href="/timeline"
           aria-label="Timeline Kinerja"
-          onClick={() => unavailable("Timeline Kinerja")}
+          aria-current={active === "timeline" ? "page" : undefined}
+          className={active === "timeline" ? "active" : ""}
         >
           <ListTree />
-        </button>
-        <button aria-label="Profil" onClick={() => unavailable("Profil")}>
+        </Link>
+        <Link
+          href="/profile"
+          aria-label="Profil"
+          aria-current={active === "profile" ? "page" : undefined}
+          className={active === "profile" ? "active" : ""}
+        >
           <UserRound />
-        </button>
+        </Link>
       </nav>
       {composer && <Composer onClose={() => setComposer(false)} />}
     </div>
