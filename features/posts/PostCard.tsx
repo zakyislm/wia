@@ -10,13 +10,27 @@ import {
   Send,
   CheckCircle2,
   AlertCircle,
+  MapPin,
 } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { resolutionResult } from "@/lib/validation";
 import { useDemo } from "@/features/auth/DemoProvider";
 import type { Post } from "@/types/models";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+
+function formatTime(timestamp?: number, currentNow?: number): string {
+  if (!timestamp) return "24j";
+  const now = currentNow ?? 1794040000000;
+  const diff = Math.max(0, now - timestamp);
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "baru saja";
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}j`;
+  const days = Math.floor(hours / 24);
+  return `${days}h`;
+}
 
 export function PostCard({
   post,
@@ -27,6 +41,10 @@ export function PostCard({
 }) {
   const { people, updatePost } = useDemo();
   const [message, setMessage] = useState("");
+  const [timeAgo, setTimeAgo] = useState(() => formatTime(post.postedAt));
+  useEffect(() => {
+    setTimeAgo(formatTime(post.postedAt, Date.now()));
+  }, [post.postedAt]);
   const author = people.find((person) => person.localKey === post.authorKey)!;
   const resolution = post.resolutions.at(-1);
   const result = resolution ? resolutionResult(resolution) : null;
@@ -53,17 +71,28 @@ export function PostCard({
       <header className="post-meta">
         <Avatar name={name} src={post.anonymous ? undefined : author.image} />
         <div>
-          <strong>
-            {post.anonymous ? (
-              name
-            ) : (
-              <Link href={`/profile/${author.localKey}`}>{name}</Link>
-            )}
-            {!post.anonymous && author.role === "GOVERNMENT" ? " ✓" : ""}
-          </strong>
-          <small>
-            {post.anonymous ? post.province : `@${author.username}`} · Contoh
-          </small>
+          <div className="post-meta-heading">
+            <span className="post-author-name">
+              {post.anonymous ? (
+                "Anonim"
+              ) : (
+                <Link href={`/profile/${author.localKey}`}>{author.name}</Link>
+              )}
+              {!post.anonymous && author.role === "GOVERNMENT" ? " ✓" : ""}
+            </span>
+            <span className="post-meta-separator">in</span>
+            <span className="post-topic-name">
+              <Link href={`/topics/${post.topicSlug || (post.category || "umum").toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}>
+                {post.topicName || post.category || "Umum"}
+              </Link>
+            </span>
+            <span className="post-meta-dot">·</span>
+            <span className="post-meta-time">{timeAgo}</span>
+          </div>
+          <div className="post-meta-location">
+            <MapPin size={12} />
+            <span>{post.province || "Nasional"}</span>
+          </div>
         </div>
         {post.kind === "report" && (
           <span className={`badge ${closed ? result : ""}`}>
@@ -90,11 +119,17 @@ export function PostCard({
           {text}
         </Link>
       )}
-      {post.kind === "report" && (
+      {post.tags && post.tags.length > 0 && (
+        <div className="post-tags">
+          {post.tags.map((tag) => (
+            <Link key={tag} href={`/explore?q=${encodeURIComponent('#' + tag)}`} className="post-tag-item">
+              #{tag}
+            </Link>
+          ))}
+        </div>
+      )}
+      {post.kind === "report" && post.agencyKeys.length > 0 && (
         <>
-          <p className="post-context">
-            {post.province} · {post.category}
-          </p>
           <p className="agency-tags">
             {post.agencyKeys
               .map(

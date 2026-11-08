@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useDemo } from "@/features/auth/DemoProvider";
 import { ProductShell } from "@/components/layout/ProductShell";
 import { Button } from "@/components/ui/Button";
@@ -21,8 +22,26 @@ export function Directory({ timeline = false }: { timeline?: boolean }) {
   const [query, setQuery] = useState("");
   const [applied, setApplied] = useState<SearchFilters>({ ...emptyFilters });
   const [tab, setTab] = useState("posts");
+  const searchParams = useSearchParams();
+  const categoryParam = searchParams.get("category") || searchParams.get("topic");
+  const queryParam = searchParams.get("q");
+
+  useEffect(() => {
+    if (categoryParam) {
+      setApplied((current) => ({
+        ...current,
+        category: [categoryParam],
+      }));
+    } else if (queryParam) {
+      setQuery(queryParam);
+      setApplied((current) => ({
+        ...current,
+        query: queryParam,
+      }));
+    }
+  }, [categoryParam, queryParam]);
   const [preview, setPreview] = useState<Person | null>(null);
-  const [now, setNow] = useState(() => Date.now());
+  const [now, setNow] = useState(1794040000000);
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);

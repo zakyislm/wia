@@ -1,0 +1,107 @@
+"use client";
+import { useState, useMemo } from "react";
+import { Search, X, Check } from "lucide-react";
+import { Dialog } from "@/components/ui/Dialog";
+import type { Topic } from "@/types/models";
+
+export const defaultTopics: Topic[] = [
+  { id: "top_bencana", name: "BencanaNasional", slug: "bencana-nasional", isTrending: true },
+  { id: "top_infra", name: "Infrastruktur", slug: "infrastruktur", isTrending: true },
+  { id: "top_komunitas", name: "Komunitas", slug: "komunitas", isTrending: true },
+  { id: "top_koruptor", name: "Koruptor", slug: "koruptor", isTrending: false },
+  { id: "top_lingkungan", name: "LingkunganHidup", slug: "lingkungan-hidup", isTrending: false },
+  { id: "top_pelayanan", name: "PelayananPublik", slug: "pelayanan-publik", isTrending: false },
+  { id: "top_kesehatan", name: "Kesehatan", slug: "kesehatan", isTrending: false },
+  { id: "top_pendidikan", name: "Pendidikan", slug: "pendidikan", isTrending: false },
+];
+
+export function TopicSelectorModal({
+  isOpen,
+  onClose,
+  onSelect,
+  selectedSlug,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onSelect: (topic: Topic) => void;
+  selectedSlug?: string;
+}) {
+  const [search, setSearch] = useState("");
+
+  const filteredTopics = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return defaultTopics;
+    return defaultTopics.filter(
+      (t) =>
+        t.name.toLowerCase().includes(q) ||
+        t.slug.toLowerCase().includes(q)
+    );
+  }, [search]);
+
+  if (!isOpen) return null;
+
+  return (
+    <Dialog title="Pilih Topik" onClose={onClose} hideHeader className="selector-modal">
+      <div className="selector-container">
+        <div className="selector-header">
+          <div className="selector-search-box">
+            <input
+              type="text"
+              autoFocus
+              placeholder="Search Topic..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="selector-search-input"
+            />
+            <Search size={18} className="selector-search-icon" />
+          </div>
+          <button type="button" className="selector-close-btn" onClick={onClose} aria-label="Tutup">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="selector-list">
+          {filteredTopics.map((topic) => {
+            const isSelected = selectedSlug === topic.slug;
+            return (
+              <button
+                key={topic.id}
+                type="button"
+                className={`selector-item ${isSelected ? "selected" : ""}`}
+                onClick={() => {
+                  onSelect(topic);
+                  onClose();
+                }}
+              >
+                <span className="selector-item-name">{topic.name}</span>
+                <span className="selector-item-meta">
+                  {topic.isTrending && <span className="selector-trending-badge">Trending</span>}
+                  {isSelected && <Check size={16} className="selector-check-icon" />}
+                </span>
+              </button>
+            );
+          })}
+
+          {filteredTopics.length === 0 && search.trim() && (
+            <button
+              type="button"
+              className="selector-item selector-item-custom"
+              onClick={() => {
+                const customName = search.trim().replace(/[^a-zA-Z0-9]/g, "");
+                const customSlug = customName.toLowerCase();
+                onSelect({
+                  id: `top_${customSlug}`,
+                  name: customName || search.trim(),
+                  slug: customSlug || "topik-kustom",
+                });
+                onClose();
+              }}
+            >
+              <span>Gunakan topik &ldquo;{search.trim()}&rdquo;</span>
+            </button>
+          )}
+        </div>
+      </div>
+    </Dialog>
+  );
+}

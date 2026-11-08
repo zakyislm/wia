@@ -3,6 +3,7 @@ import {
   createContext,
   useContext,
   useState,
+  useEffect,
   useRef,
   type ReactNode,
 } from "react";
@@ -15,7 +16,10 @@ function useDemoState() {
   const [people, setPeople] = useState<Person[]>(seedPeople);
   const feedScroll = useRef(0);
   const [theme, setTheme] = useState<"light" | "dark" | "system">("system");
-  const [posts, setPosts] = useState<Post[]>([]);
+  const [posts, setPosts] = useState<Post[]>(seedPosts);
+  useEffect(() => {
+    setPosts(seedPosts(Date.now()));
+  }, []);
   const [userKey, setUserKey] = useState<string | null>(null);
   const [following, setFollowing] = useState<string[]>([]);
   const user = people.find((person) => person.localKey === userKey);

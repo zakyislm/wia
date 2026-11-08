@@ -1,6 +1,9 @@
 "use client";
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
+import { useState, useEffect, useMemo, type ReactNode } from "react";
+import { QuickSearchModal } from "@/components/search/QuickSearchModal";
+import { NewsOfTheDayCard } from "@/components/news/NewsOfTheDayCard";
+import { HighlightSection } from "@/components/news/HighlightSection";
 import {
   Home,
   Search,
@@ -34,7 +37,7 @@ export function ProductShell({
   active = "home",
   wide = false,
 }: {
-  title: string;
+  title: ReactNode;
   children: ReactNode;
   active?:
     | "home"
@@ -47,8 +50,30 @@ export function ProductShell({
     | "agency";
   wide?: boolean;
 }) {
-  const { people, user, logout, following, setFollowing, theme } = useDemo();
+  const { people, posts, user, logout, following, setFollowing, theme } = useDemo();
   const [composer, setComposer] = useState(false);
+  const [searchModal, setSearchModal] = useState(false);
+
+  const topTrendingPost = useMemo(() => {
+    const candidates = posts.filter((p) => !p.isDeleted && !p.hidden);
+    if (!candidates.length) return null;
+    return [...candidates].sort((a, b) => {
+      const scoreA = a.upvotesCount * 1.5 + (a.replies?.length ?? 0) * 2;
+      const scoreB = b.upvotesCount * 1.5 + (b.replies?.length ?? 0) * 2;
+      return scoreB - scoreA;
+    })[0];
+  }, [posts]);
+
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setSearchModal((prev) => !prev);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   if (!user) return <Login />;
   return (
@@ -105,7 +130,7 @@ export function ProductShell({
       </aside>
       <main id="main-content" className="reading-column">
         <header className="page-header">
-          <h1>{title}</h1>
+          {typeof title === "string" ? <h1>{title}</h1> : title}
           <div>
             <Link
               className="button button--ghost mobile-bell"
@@ -127,10 +152,25 @@ export function ProductShell({
         </Button>
       </main>
       <aside className="support-column">
-        <Link className="search-box" href="/explore">
-          <Search />
-          Cari di KAVI
-        </Link>
+        <div className="support-search-wrapper">
+          <button
+            type="button"
+            className="search-box search-box-trigger"
+          onClick={() => setSearchModal(true)}
+          aria-label="Cari di KAVI"
+        >
+          <div className="search-box-left">
+            <Search size={16} />
+            <span>Cari di KAVI</span>
+          </div>
+          </button>
+        </div>
+        {/* KAVI News Of The Day */}
+        <NewsOfTheDayCard post={topTrendingPost} />
+
+        {/* Highlight Trending Tags */}
+        <HighlightSection />
+
         <section className="suggestions">
           <h2>Temukan suara baru</h2>
           {people
@@ -222,6 +262,10 @@ export function ProductShell({
         </Link>
       </nav>
       {composer && <Composer onClose={() => setComposer(false)} />}
+      <QuickSearchModal
+        isOpen={searchModal}
+        onClose={() => setSearchModal(false)}
+      />
     </div>
   );
 }

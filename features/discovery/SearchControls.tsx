@@ -32,6 +32,9 @@ export function SearchControls({
   agencies,
 }: Props) {
   const [draft, setDraft] = useState(filters);
+  useEffect(() => {
+    setDraft(filters);
+  }, [filters]);
   const [error, setError] = useState("");
   const details = useRef<HTMLDetailsElement>(null);
   const trigger = useRef<HTMLElement>(null);

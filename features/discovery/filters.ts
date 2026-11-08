@@ -74,7 +74,8 @@ export function filterPosts(
         .filter((person) => post.agencyKeys.includes(person.localKey))
         .map((person) => `${person.name} ${person.username}`)
         .join(" ");
-      return `${post.content} ${post.province} ${post.category} ${author} ${agencies}`
+      const tagsStr = post.tags ? post.tags.map(t => "#" + t + " " + t).join(" ") : "";
+      return `${post.content} ${tagsStr} ${post.province} ${post.category} ${author} ${agencies}`
         .toLocaleLowerCase("id-ID")
         .includes(query);
     })

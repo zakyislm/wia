@@ -1,5 +1,13 @@
 export type Role = "USER" | "GOVERNMENT" | "INTERNAL";
 export type Vote = "UP" | "DOWN" | null;
+
+export interface Topic {
+  id: string;
+  name: string;
+  slug: string;
+  isTrending?: boolean;
+}
+
 export interface Person {
   id: "";
   localKey: string;
@@ -10,6 +18,7 @@ export interface Person {
   region?: string;
   image?: string;
 }
+
 export interface Reply {
   id: "";
   localKey: string;
@@ -20,6 +29,7 @@ export interface Reply {
   parentKey?: string;
   content: string;
 }
+
 export interface Resolution {
   id: "";
   localKey: string;
@@ -31,10 +41,13 @@ export interface Resolution {
   disagree: number;
   choice: "agree" | "disagree" | null;
 }
+
 export interface Post {
   id: "";
   authorId: "";
-  topicId: "";
+  topicId: string;
+  topicSlug?: string;
+  topicName?: string;
   localKey: string;
   authorKey: string;
   postedAt: number;
@@ -43,6 +56,7 @@ export interface Post {
   content: string;
   province: string;
   category: string;
+  tags?: string[];
   agencyKeys: string[];
   images: string[];
   upvotesCount: number;

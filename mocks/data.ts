@@ -43,21 +43,24 @@ export const people: Person[] = [
   },
 ];
 
-export function seedPosts(): Post[] {
-  const now = Date.now();
+export function seedPosts(baseTime = 1794040000000): Post[] {
+  const now = baseTime;
   const base: Post = {
     id: "",
     authorId: "",
-    topicId: "",
+    topicId: "top_komunitas",
+    topicSlug: "komunitas",
+    topicName: "Komunitas",
     localKey: "ruang-kecil",
     authorKey: "nadia",
-    postedAt: now - 2 * 86400000,
+    postedAt: now - 2 * 3600000,
     kind: "general",
     anonymous: false,
     content:
       "Ruang kecil, perubahan besar.\n\nSore ini ikut bersih-bersih taman bareng tetangga. Ada yang punya ide kegiatan buat akhir pekan?",
-    province: "",
-    category: "",
+    province: "Jawa Barat",
+    category: "Komunitas",
+    tags: ["Kebersihan", "Warga", "KotaKita"],
     agencyKeys: [],
     images: [],
     upvotesCount: 128,
@@ -70,14 +73,19 @@ export function seedPosts(): Post[] {
     ...base,
     localKey: "trotoar-merdeka",
     authorKey: "alya",
-    postedAt: now - 4 * 86400000,
+    postedAt: now - 4 * 3600000,
     kind: "report",
     anonymous: true,
     content:
       "Trotoar yang aman untuk semua.\n\nTrotoar di Jl. Merdeka rusak dan sulit dilewati. Perlu akses aman untuk semua pejalan kaki.",
     province: "Jawa Barat",
     category: "Infrastruktur",
+    topicId: "top_infra",
+    topicSlug: "infrastruktur",
+    topicName: "Infrastruktur",
+    images: ["https://images.unsplash.com/photo-1578916171728-46686eac8d58?q=80&w=720&auto=format&fit=crop"],
     agencyKeys: ["pupr", "dishub"],
+    tags: ["TrotoarRusak", "AksesAman", "Bandung"],
     upvotesCount: 86,
     replies: [
       {
@@ -111,6 +119,11 @@ export function seedPosts(): Post[] {
     ...(["success", "failed", "zero"] as const).map((outcome, i) => ({
       ...report,
       localKey: `contoh-${outcome}`,
+      tags: [
+        ["LampuJalan", "FasilitasPublik"],
+        ["HalteBus", "TransportasiUmum", "Aksesibilitas"],
+        ["RambuJalan", "KeselamatanWarga"],
+      ][i],
       content:
         [
           "Lampu jalan kembali menyala.",

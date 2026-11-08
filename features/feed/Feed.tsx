@@ -1,11 +1,12 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useDemo } from "@/features/auth/DemoProvider";
 import { ProductShell } from "@/components/layout/ProductShell";
 import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
 import { Composer } from "@/features/posts/Composer";
 import { PostCard } from "@/features/posts/PostCard";
+import { ChevronDown, Check } from "lucide-react";
 
 export function Feed() {
   const { posts, user, following, feedScroll } = useDemo();
@@ -17,7 +18,21 @@ export function Feed() {
     window.addEventListener("scroll", save);
     return () => window.removeEventListener("scroll", save);
   }, [feedScroll]);
-  const [tab, setTab] = useState("foryou");
+
+  const [tab, setTab] = useState<"foryou" | "following">("foryou");
+  const [tabDropdownOpen, setTabDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setTabDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   const [composer, setComposer] = useState(false);
   const visible =
     tab === "following"
@@ -26,34 +41,61 @@ export function Feed() {
         )
       : posts;
   const readable = visible.filter((post) => !post.hidden && !post.isDeleted);
+
   return (
-    <ProductShell title="Beranda">
-      <section className="feed-surface home-feed">
-        <div className="feed-tabs" role="tablist" aria-label="Pilihan feed">
-          {[
-            { key: "foryou", label: "Untuk Kamu" },
-            { key: "following", label: "Mengikuti" },
-          ].map((item) => (
-            <button
-              role="tab"
-              aria-selected={tab === item.key}
-              className={tab === item.key ? "selected" : ""}
-              key={item.key}
-              onClick={() => setTab(item.key)}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-        <div className="compact-composer">
-          <Avatar name={user?.name ?? "A"} src={user?.image} />
-          <button onClick={() => setComposer(true)}>
-            Ada cerita apa hari ini?
+    <ProductShell
+      title={
+        <div className="feed-header-title" ref={dropdownRef}>
+          <h1>Beranda</h1>
+          <button
+            type="button"
+            className="subtab-arrow-btn"
+            onClick={() => setTabDropdownOpen((prev) => !prev)}
+            aria-label="Pilih subtab feed"
+          >
+            <ChevronDown size={16} className={tabDropdownOpen ? "rotated" : ""} />
           </button>
-          <Button variant="secondary" onClick={() => setComposer(true)}>
-            Post
-          </Button>
+          {tabDropdownOpen && (
+            <div className="subtab-dropdown-menu">
+              <button
+                type="button"
+                className={tab === "foryou" ? "active" : ""}
+                onClick={() => {
+                  setTab("foryou");
+                  setTabDropdownOpen(false);
+                }}
+              >
+                <span>Untuk Kamu</span>
+                {tab === "foryou" && <Check size={13} />}
+              </button>
+              <button
+                type="button"
+                className={tab === "following" ? "active" : ""}
+                onClick={() => {
+                  setTab("following");
+                  setTabDropdownOpen(false);
+                }}
+              >
+                <span>Mengikuti</span>
+                {tab === "following" && <Check size={13} />}
+              </button>
+            </div>
+          )}
         </div>
+      }
+    >
+      <section className="feed-surface home-feed">
+        <button
+          type="button"
+          className="compact-composer"
+          onClick={() => setComposer(true)}
+          aria-label="Buat postingan baru"
+        >
+          <Avatar name={user?.name ?? "A"} src={user?.image} />
+          <span className="compact-composer-prompt">
+            Ada cerita apa hari ini?
+          </span>
+        </button>
         {readable.map((post) => (
           <PostCard key={post.localKey} post={post} />
         ))}
