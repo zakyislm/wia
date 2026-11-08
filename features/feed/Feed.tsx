@@ -25,7 +25,10 @@ export function Feed() {
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
         setTabDropdownOpen(false);
       }
     }
@@ -43,20 +46,38 @@ export function Feed() {
   const readable = visible.filter((post) => !post.hidden && !post.isDeleted);
 
   return (
-    <ProductShell
-      title={
-        <div className="feed-header-title" ref={dropdownRef}>
-          <h1>Beranda</h1>
+    <ProductShell active="home" hideHeader>
+      <section className="feed-surface home-feed">
+        <button
+          type="button"
+          className="compact-composer"
+          onClick={() => setComposer(true)}
+          aria-label="Buat postingan baru"
+        >
+          <Avatar name={user?.name ?? "A"} src={user?.image} />
+          <span className="compact-composer-prompt">
+            Ada cerita apa hari ini?
+          </span>
+        </button>
+
+        {/* Substack-style small filter dropdown below the composer box */}
+        <div className="substack-filter-bar" ref={dropdownRef}>
           <button
             type="button"
-            className="subtab-arrow-btn"
+            className="substack-filter-btn"
             onClick={() => setTabDropdownOpen((prev) => !prev)}
-            aria-label="Pilih subtab feed"
+            aria-expanded={tabDropdownOpen}
+            aria-label="Filter feed"
           >
-            <ChevronDown size={16} className={tabDropdownOpen ? "rotated" : ""} />
+            <span>{tab === "foryou" ? "Untuk Kamu" : "Mengikuti"}</span>
+            <ChevronDown
+              size={14}
+              className={tabDropdownOpen ? "rotated" : ""}
+            />
           </button>
+
           {tabDropdownOpen && (
-            <div className="subtab-dropdown-menu">
+            <div className="subtab-dropdown-menu substack-dropdown">
               <button
                 type="button"
                 className={tab === "foryou" ? "active" : ""}
@@ -82,20 +103,7 @@ export function Feed() {
             </div>
           )}
         </div>
-      }
-    >
-      <section className="feed-surface home-feed">
-        <button
-          type="button"
-          className="compact-composer"
-          onClick={() => setComposer(true)}
-          aria-label="Buat postingan baru"
-        >
-          <Avatar name={user?.name ?? "A"} src={user?.image} />
-          <span className="compact-composer-prompt">
-            Ada cerita apa hari ini?
-          </span>
-        </button>
+
         {readable.map((post) => (
           <PostCard key={post.localKey} post={post} />
         ))}

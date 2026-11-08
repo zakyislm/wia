@@ -1,9 +1,10 @@
 import { Suspense } from "react";
-import { Directory } from "@/features/discovery/Directory";
+import { ExploreView } from "@/features/explore/ExploreView";
+
 export default function ExplorePage() {
   return (
     <Suspense fallback={<p role="status">Memuat Jelajah…</p>}>
-      <Directory />
+      <ExploreView />
     </Suspense>
   );
 }

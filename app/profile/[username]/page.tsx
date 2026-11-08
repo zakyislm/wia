@@ -1,16 +1,19 @@
 import { Suspense } from "react";
 import { Profile } from "@/features/profile/Profile";
+
 async function Content({
   params,
 }: {
-  params: Promise<{ profileKey: string }>;
+  params: Promise<{ username: string }>;
 }) {
-  return <Profile profileKey={(await params).profileKey} />;
+  const { username } = await params;
+  return <Profile profileKey={username} />;
 }
+
 export default function Page({
   params,
 }: {
-  params: Promise<{ profileKey: string }>;
+  params: Promise<{ username: string }>;
 }) {
   return (
     <Suspense fallback={<p role="status">Memuat profil…</p>}>

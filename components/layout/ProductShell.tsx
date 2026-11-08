@@ -10,16 +10,15 @@ import {
   MessagesSquare,
   Bell,
   UserRound,
-  ListTree,
+  Archive,
+  FileExclamationPoint,
   Settings,
   Plus,
-  LogOut,
 } from "lucide-react";
 import { useDemo } from "@/features/auth/DemoProvider";
 import { Login } from "@/features/auth/Login";
 import { Composer } from "@/features/posts/Composer";
 import { Avatar } from "@/components/ui/Avatar";
-import { ThemeToggle } from "@/components/ui/ThemeToggle";
 import { Button } from "@/components/ui/Button";
 
 const destinations = [
@@ -27,8 +26,7 @@ const destinations = [
   { label: "Jelajah", icon: Search, href: "/explore" },
   { label: "Obrolan", icon: MessagesSquare, href: "/messages" },
   { label: "Notifikasi", icon: Bell, href: "/notifications" },
-  { label: "Profil", icon: UserRound, href: "/profile" },
-  { label: "Timeline Kinerja", icon: ListTree, href: "/timeline" },
+  { label: "Timeline Kinerja", icon: Archive, href: "/timeline" },
   { label: "Pengaturan", icon: Settings, href: "/settings" },
 ];
 export function ProductShell({
@@ -36,8 +34,9 @@ export function ProductShell({
   children,
   active = "home",
   wide = false,
+  hideHeader = false,
 }: {
-  title: ReactNode;
+  title?: ReactNode;
   children: ReactNode;
   active?:
     | "home"
@@ -49,8 +48,9 @@ export function ProductShell({
     | "settings"
     | "agency";
   wide?: boolean;
+  hideHeader?: boolean;
 }) {
-  const { people, posts, user, logout, following, setFollowing, theme } = useDemo();
+  const { people, posts, user, following, setFollowing } = useDemo();
   const [composer, setComposer] = useState(false);
   const [searchModal, setSearchModal] = useState(false);
 
@@ -78,14 +78,14 @@ export function ProductShell({
   if (!user) return <Login />;
   return (
     <div
-      className={`product ${theme === "dark" ? "theme-dark" : theme === "light" ? "theme-light" : "theme-system"} ${wide ? "product--messages" : ""}`}
+      className={`product ${wide ? "product--messages" : ""}`}
     >
       <a className="skip-link" href="#main-content">
         Lewati navigasi
       </a>
       <aside className="sidebar">
         <Link href="/home" className="wordmark">
-          kavi
+          k!
         </Link>
         <nav aria-label="Navigasi utama">
           {destinations.map(({ label, icon: Icon, href }, index) =>
@@ -108,7 +108,7 @@ export function ProductShell({
               href="/agency"
               aria-label="Laporan Instansi"
             >
-              <ListTree />
+              <FileExclamationPoint />
               <span>Laporan Instansi</span>
             </Link>
           )}
@@ -117,31 +117,31 @@ export function ProductShell({
           <Plus />
           <span>Buat Postingan</span>
         </Button>
-        <div className="sidebar-account">
+        <Link
+          href="/profile/@me"
+          className={`nav-item sidebar-account ${active === "profile" ? "active" : ""}`}
+          aria-label="Profile"
+          aria-current={active === "profile" ? "page" : undefined}
+        >
           <Avatar name={user.name} src={user.image} />
-          <div>
-            <strong>{user.name}</strong>
-            <small>@{user.username}</small>
-          </div>
-          <Button variant="ghost" aria-label="Keluar demo" onClick={logout}>
-            <LogOut />
-          </Button>
-        </div>
+          <span>Profile</span>
+        </Link>
       </aside>
       <main id="main-content" className="reading-column">
-        <header className="page-header">
-          {typeof title === "string" ? <h1>{title}</h1> : title}
-          <div>
-            <Link
-              className="button button--ghost mobile-bell"
-              href="/notifications"
-              aria-label="Notifikasi"
-            >
-              <Bell />
-            </Link>
-            <ThemeToggle />
-          </div>
-        </header>
+        {!hideHeader && title && (
+          <header className="page-header">
+            {typeof title === "string" ? <h1>{title}</h1> : title}
+            <div>
+              <Link
+                className="button button--ghost mobile-bell"
+                href="/notifications"
+                aria-label="Notifikasi"
+              >
+                <Bell />
+              </Link>
+            </div>
+          </header>
+        )}
         {children}
         <Button
           className="floating-compose"
@@ -250,10 +250,10 @@ export function ProductShell({
           aria-current={active === "timeline" ? "page" : undefined}
           className={active === "timeline" ? "active" : ""}
         >
-          <ListTree />
+          <Archive />
         </Link>
         <Link
-          href="/profile"
+          href="/profile/@me"
           aria-label="Profil"
           aria-current={active === "profile" ? "page" : undefined}
           className={active === "profile" ? "active" : ""}

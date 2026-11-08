@@ -1,4 +1,5 @@
-import { Profile } from "@/features/profile/Profile";
+import { redirect } from "next/navigation";
+
 export default function Page() {
-  return <Profile />;
+  redirect("/profile/@me");
 }

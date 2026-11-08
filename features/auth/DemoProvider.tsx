@@ -15,7 +15,7 @@ function useDemoState() {
   const [workspace, setWorkspace] = useState(seedWorkspace);
   const [people, setPeople] = useState<Person[]>(seedPeople);
   const feedScroll = useRef(0);
-  const [theme, setTheme] = useState<"light" | "dark" | "system">("system");
+  const [theme, setTheme] = useState<"light" | "dark" | "system">("light");
   const [posts, setPosts] = useState<Post[]>(seedPosts);
   useEffect(() => {
     setPosts(seedPosts(Date.now()));

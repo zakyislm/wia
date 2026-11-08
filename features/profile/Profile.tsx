@@ -164,10 +164,21 @@ export function Profile({ profileKey }: { profileKey?: string }) {
     null,
   );
   const [editing, setEditing] = useState(false);
-  const person = people.find(
-    (item) => item.localKey === (profileKey ?? user?.localKey),
-  );
-  const own = person?.localKey === user?.localKey;
+  const targetKey = profileKey ? decodeURIComponent(profileKey).trim() : "@me";
+  const isMe = targetKey === "@me" || targetKey.toLowerCase() === "me";
+
+  const person = isMe
+    ? (people.find((p) => p.localKey === user?.localKey) ?? user)
+    : people.find((item) => {
+        const clean = targetKey.replace(/^@/, "").toLowerCase();
+        return (
+          item.username.toLowerCase() === clean ||
+          item.localKey.toLowerCase() === clean ||
+          item.id.toLowerCase() === clean
+        );
+      });
+
+  const own = isMe || (Boolean(person) && person?.localKey === user?.localKey);
   const authored = posts.filter(
     (post) => post.authorKey === person?.localKey && (!post.anonymous || own),
   );

@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { Avatar } from "@/components/ui/Avatar";
+import { UserHoverCard } from "@/components/user/UserHoverCard";
 import { Button } from "@/components/ui/Button";
 import { useDemo } from "@/features/auth/DemoProvider";
 import type { Post } from "@/types/models";
@@ -106,12 +107,18 @@ export function CommentThread({
           >
             <div className="comment-body">
               <div className="post-meta">
-                <Avatar name={author.name} src={author.image} />
+                <UserHoverCard person={author}>
+                  <Link href={`/profile/${author.username || author.localKey}`} className="post-avatar-link">
+                    <Avatar name={author.name} src={author.image} />
+                  </Link>
+                </UserHoverCard>
                 <div>
                   <strong>
-                    <Link href={`/profile/${author.localKey}`}>
-                      {author.name}
-                    </Link>
+                    <UserHoverCard person={author}>
+                      <Link href={`/profile/${author.username || author.localKey}`}>
+                        {author.name}
+                      </Link>
+                    </UserHoverCard>
                     {author.role === "GOVERNMENT" ? " ✓" : ""}
                   </strong>
                   <small>@{author.username}</small>

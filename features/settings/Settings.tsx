@@ -6,7 +6,7 @@ import { useDemo } from "@/features/auth/DemoProvider";
 import { ProductShell } from "@/components/layout/ProductShell";
 import { Button } from "@/components/ui/Button";
 export function Settings() {
-  const { user, theme, setTheme, workspace, setWorkspace, logout } = useDemo();
+  const { user, workspace, setWorkspace, logout } = useDemo();
   const router = useRouter();
   const [social, setSocial] = useState(workspace.notificationSocial);
   const [reports, setReports] = useState(workspace.notificationReports);
@@ -21,7 +21,7 @@ export function Settings() {
               <strong>{user?.name}</strong>
               <br />@{user?.username}
             </p>
-            <Link href="/profile" className="button button--secondary">
+            <Link href="/profile/@me" className="button button--secondary">
               Edit profil
             </Link>
             <Link href="/recovery">Pemulihan kata sandi →</Link>
@@ -77,29 +77,6 @@ export function Settings() {
             </label>
             <Button type="submit">Simpan preferensi</Button>
           </form>
-        </details>
-        <details className="settings-section">
-          <summary>
-            Tampilan ·{" "}
-            {theme === "system"
-              ? "Ikuti perangkat"
-              : theme === "dark"
-                ? "Gelap"
-                : "Terang"}
-          </summary>
-          <label className="stack">
-            Tema
-            <select
-              value={theme}
-              onChange={(e) =>
-                setTheme(e.target.value as "system" | "light" | "dark")
-              }
-            >
-              <option value="system">Ikuti perangkat</option>
-              <option value="light">Terang</option>
-              <option value="dark">Gelap</option>
-            </select>
-          </label>
         </details>
         <Link className="settings-link" href="/activity">
           Riwayat aktivitas pribadi →

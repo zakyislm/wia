@@ -3,16 +3,17 @@
 import Link from "next/link";
 import { PostMenu } from "./PostMenu";
 import {
-  ArrowUp,
-  ArrowDown,
+  ArrowBigUp,
+  ArrowBigDown,
   MessageCircle,
   Repeat2,
-  Send,
+  Upload,
   CheckCircle2,
   AlertCircle,
   MapPin,
 } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
+import { UserHoverCard } from "@/components/user/UserHoverCard";
 import { Button } from "@/components/ui/Button";
 import { resolutionResult } from "@/lib/validation";
 import { useDemo } from "@/features/auth/DemoProvider";
@@ -69,14 +70,26 @@ export function PostCard({
   return (
     <article className="post-card">
       <header className="post-meta">
-        <Avatar name={name} src={post.anonymous ? undefined : author.image} />
+        {post.anonymous ? (
+          <Avatar name={name} />
+        ) : (
+          <UserHoverCard person={author}>
+            <Link href={`/profile/${author.username || author.localKey}`} className="post-avatar-link">
+              <Avatar name={name} src={author.image} />
+            </Link>
+          </UserHoverCard>
+        )}
         <div>
           <div className="post-meta-heading">
             <span className="post-author-name">
               {post.anonymous ? (
                 "Anonim"
               ) : (
-                <Link href={`/profile/${author.localKey}`}>{author.name}</Link>
+                <UserHoverCard person={author}>
+                  <Link href={`/profile/${author.username || author.localKey}`}>
+                    {author.name}
+                  </Link>
+                </UserHoverCard>
               )}
               {!post.anonymous && author.role === "GOVERNMENT" ? " ✓" : ""}
             </span>
@@ -174,7 +187,7 @@ export function PostCard({
           aria-pressed={post.vote === "UP"}
           onClick={() => vote("UP")}
         >
-          <ArrowUp />
+          <ArrowBigUp size={18} strokeWidth={1.8} />
           <small>
             {post.upvotesCount +
               (post.vote === "UP" ? 1 : post.vote === "DOWN" ? -1 : 0)}
@@ -186,10 +199,10 @@ export function PostCard({
           aria-pressed={post.vote === "DOWN"}
           onClick={() => vote("DOWN")}
         >
-          <ArrowDown />
+          <ArrowBigDown size={18} strokeWidth={1.8} />
         </Button>
-        <Link href={href} aria-label="Buka komentar">
-          <MessageCircle />
+        <Link href={href} className="button button--ghost" aria-label="Buka komentar">
+          <MessageCircle size={18} strokeWidth={1.8} />
           <small>{post.replies.length}</small>
         </Link>
         <Button
@@ -203,7 +216,7 @@ export function PostCard({
             }))
           }
         >
-          <Repeat2 />
+          <Repeat2 size={18} strokeWidth={1.8} />
         </Button>
         <Button
           variant="ghost"
@@ -219,7 +232,7 @@ export function PostCard({
             }
           }}
         >
-          <Send />
+          <Upload size={18} strokeWidth={1.8} />
         </Button>
       </footer>
       {message && (
