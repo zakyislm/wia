@@ -1,5 +1,10 @@
 export type Role = "USER" | "GOVERNMENT" | "INTERNAL";
 export type Vote = "UP" | "DOWN" | null;
+export type ReportStatus =
+  | "waiting"
+  | "in_progress"
+  | "completed"
+  | "closed_internal";
 
 export interface Topic {
   id: string;
@@ -28,6 +33,16 @@ export interface Reply {
   authorKey: string;
   parentKey?: string;
   content: string;
+  postedAt?: number;
+  images?: string[];
+  location?: string;
+  is_action_taken?: boolean;
+  actionRole?: "GOVERNMENT" | "INTERNAL";
+  actionTakenAt?: number;
+  upvotesCount?: number;
+  downvotesCount?: number;
+  vote?: Vote;
+  reposted?: boolean;
 }
 
 export interface Resolution {
@@ -52,6 +67,11 @@ export interface Post {
   authorKey: string;
   postedAt: number;
   kind: "general" | "report";
+  reportStatus?: ReportStatus;
+  closedByKey?: string;
+  closedByRole?: "GOVERNMENT" | "INTERNAL";
+  closedAt?: number;
+  pendingTakeActionRole?: "GOVERNMENT" | "INTERNAL" | null;
   anonymous: boolean;
   content: string;
   province: string;

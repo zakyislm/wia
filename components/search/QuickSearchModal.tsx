@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { Dialog } from "@/components/ui/Dialog";
 import { Avatar } from "@/components/ui/Avatar";
+import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { useDemo } from "@/features/auth/DemoProvider";
 import { defaultTopics } from "@/components/selectors/TopicSelectorModal";
 
@@ -238,7 +239,7 @@ export function QuickSearchModal({
                       <div className="quick-search-user-info">
                         <strong>
                           {person.name}
-                          {person.role === "GOVERNMENT" ? " ✓" : ""}
+                          <VerifiedBadge role={person.role} size={15} />
                         </strong>
                         <small>@{person.username}</small>
                       </div>

@@ -3,6 +3,7 @@ import React, { useState, useRef, useMemo } from "react";
 import Link from "next/link";
 import { useDemo } from "@/features/auth/DemoProvider";
 import { Avatar } from "@/components/ui/Avatar";
+import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import type { Person } from "@/types/models";
 
 interface UserHoverCardProps {
@@ -91,9 +92,7 @@ export function UserHoverCard({ person, children }: UserHoverCardProps) {
             <div className="user-hover-names">
               <Link href={profileHref} className="user-hover-name">
                 {person.name}
-                {person.role === "GOVERNMENT" && (
-                  <span className="verified-badge"> ✓</span>
-                )}
+                <VerifiedBadge role={person.role} size={17} />
               </Link>
               <span className="user-hover-username">@{person.username}</span>
             </div>

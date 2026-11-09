@@ -119,7 +119,7 @@ export function Feed() {
           </div>
         )}
       </section>
-      {composer && <Composer onClose={() => setComposer(false)} />}
+      {composer && <Composer initialMode="post" onClose={() => setComposer(false)} />}
     </ProductShell>
   );
 }

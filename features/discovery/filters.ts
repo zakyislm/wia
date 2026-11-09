@@ -1,4 +1,4 @@
-import type { Person, Post } from "@/types/models";
+import type { Person, Post, ReportStatus } from "@/types/models";
 import { resolutionResult } from "@/lib/validation";
 
 export interface SearchFilters {
@@ -24,8 +24,24 @@ export function jakartaDay(timestamp: number) {
   return new Date(timestamp + 7 * 3600000).toISOString().slice(0, 10);
 }
 
+export function getEffectiveReportStatus(post: Post): ReportStatus {
+  if (post.reportStatus) return post.reportStatus;
+  if (post.replies.some((r) => r.is_action_taken)) return "in_progress";
+  const latest = post.resolutions.at(-1);
+  if (latest) {
+    const res = resolutionResult(latest);
+    if (res === "success" || res === "automatic") return "completed";
+    if (res === "active") return "in_progress";
+  }
+  return "waiting";
+}
+
 export function closureDate(post: Post, now: number): number | null {
   if (post.isDeleted || post.kind !== "report") return null;
+  const status = getEffectiveReportStatus(post);
+  if (status === "completed" || status === "closed_internal") {
+    return post.closedAt ?? post.postedAt;
+  }
   const latest = post.resolutions.at(-1);
   if (!latest) return null;
   const result = resolutionResult(latest, now);
@@ -74,7 +90,9 @@ export function filterPosts(
         .filter((person) => post.agencyKeys.includes(person.localKey))
         .map((person) => `${person.name} ${person.username}`)
         .join(" ");
-      const tagsStr = post.tags ? post.tags.map(t => "#" + t + " " + t).join(" ") : "";
+      const tagsStr = post.tags
+        ? post.tags.map((t) => "#" + t + " " + t).join(" ")
+        : "";
       return `${post.content} ${tagsStr} ${post.province} ${post.category} ${author} ${agencies}`
         .toLocaleLowerCase("id-ID")
         .includes(query);

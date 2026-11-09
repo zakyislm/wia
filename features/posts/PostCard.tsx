@@ -1,6 +1,7 @@
 /* eslint-disable @next/next/no-img-element -- Session-only blob URLs cannot use server image optimization. */
 "use client";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { PostMenu } from "./PostMenu";
 import {
   ArrowBigUp,
@@ -9,16 +10,81 @@ import {
   Repeat2,
   Upload,
   CheckCircle2,
-  AlertCircle,
+  XCircle,
+  Timer,
   MapPin,
+  BadgeCheck,
 } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
 import { UserHoverCard } from "@/components/user/UserHoverCard";
 import { Button } from "@/components/ui/Button";
-import { resolutionResult } from "@/lib/validation";
+import { getEffectiveReportStatus } from "@/features/discovery/filters";
 import { useDemo } from "@/features/auth/DemoProvider";
-import type { Post } from "@/types/models";
-import { useState, useEffect } from "react";
+import type { Person, Post, Role } from "@/types/models";
+import { useState, useEffect, type ReactNode } from "react";
+
+export function VerifiedBadge({
+  role,
+  size = 16,
+}: {
+  role?: Role;
+  size?: number;
+}) {
+  if (role === "GOVERNMENT") {
+    return (
+      <BadgeCheck
+        size={size}
+        fill="#10b981"
+        color="#ffffff"
+        className="verified-badge-icon"
+        aria-label="Terverifikasi Aparat"
+      />
+    );
+  }
+  if (role === "INTERNAL") {
+    return (
+      <BadgeCheck
+        size={size}
+        fill="#991b1b"
+        color="#ffffff"
+        className="verified-badge-icon"
+        aria-label="Tim Internal"
+      />
+    );
+  }
+  return null;
+}
+
+export function renderWithMentions(
+  content: string,
+  people: Person[],
+): ReactNode {
+  const parts = content.split(/(@[a-zA-Z0-9_]+)/g);
+  return parts.map((part, index) => {
+    if (part.startsWith("@") && part.length > 1) {
+      const clean = part.slice(1).toLowerCase();
+      const matched = people.find(
+        (p) =>
+          p.username.toLowerCase() === clean ||
+          p.localKey.toLowerCase() === clean,
+      );
+      if (matched) {
+        return (
+          <UserHoverCard person={matched} key={`${part}-${index}`}>
+            <Link
+              href={`/profile/${matched.username || matched.localKey}`}
+              className="mention-link"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {part}
+            </Link>
+          </UserHoverCard>
+        );
+      }
+    }
+    return part;
+  });
+}
 
 function formatTime(timestamp?: number, currentNow?: number): string {
   if (!timestamp) return "24j";
@@ -41,25 +107,33 @@ export function PostCard({
   detail?: boolean;
 }) {
   const { people, updatePost } = useDemo();
+  const router = useRouter();
   const [message, setMessage] = useState("");
   const [timeAgo, setTimeAgo] = useState(() => formatTime(post.postedAt));
   useEffect(() => {
     setTimeAgo(formatTime(post.postedAt, Date.now()));
   }, [post.postedAt]);
-  const author = people.find((person) => person.localKey === post.authorKey)!;
-  const resolution = post.resolutions.at(-1);
-  const result = resolution ? resolutionResult(resolution) : null;
-  const closed = result === "success" || result === "automatic";
+
+  const author =
+    people.find((person) => person.localKey === post.authorKey) ?? people[0];
   const name = post.anonymous ? "Anonim" : author.name;
+  const isReport = post.kind === "report";
+  const reportStatus = isReport ? getEffectiveReportStatus(post) : null;
+
   const [heading, ...paragraphs] = post.content.split("\n\n");
-  const text = paragraphs.length ? (
-    <>
-      <h3>{heading}</h3>
-      <p>{paragraphs.join("\n\n")}</p>
-    </>
-  ) : (
-    post.content
-  );
+  const text =
+    isReport && paragraphs.length ? (
+      <>
+        <h3>{renderWithMentions(heading, people)}</h3>
+        <p>{renderWithMentions(paragraphs.join("\n\n"), people)}</p>
+      </>
+    ) : (
+      <div className="post-general-text">
+        {post.content.split("\n\n").map((para, i) => (
+          <p key={i}>{renderWithMentions(para, people)}</p>
+        ))}
+      </div>
+    );
   const href = `/posts/${post.localKey}`;
   function vote(direction: "UP" | "DOWN") {
     updatePost(post.localKey, (current) => ({
@@ -68,17 +142,24 @@ export function PostCard({
     }));
   }
   return (
-    <article className="post-card">
-      <header className="post-meta">
+    <article
+      className={`post-card ${isReport ? "post-card--report" : "post-card--general"}`}
+    >
+      <div className="post-avatar-col">
         {post.anonymous ? (
           <Avatar name={name} />
         ) : (
           <UserHoverCard person={author}>
-            <Link href={`/profile/${author.username || author.localKey}`} className="post-avatar-link">
+            <Link
+              href={`/profile/${author.username || author.localKey}`}
+              className="post-avatar-link"
+            >
               <Avatar name={name} src={author.image} />
             </Link>
           </UserHoverCard>
         )}
+      </div>
+      <header className="post-meta">
         <div>
           <div className="post-meta-heading">
             <span className="post-author-name">
@@ -91,35 +172,64 @@ export function PostCard({
                   </Link>
                 </UserHoverCard>
               )}
-              {!post.anonymous && author.role === "GOVERNMENT" ? " ✓" : ""}
+              {!post.anonymous && <VerifiedBadge role={author.role} size={15} />}
             </span>
-            <span className="post-meta-separator">in</span>
-            <span className="post-topic-name">
-              <Link href={`/topics/${post.topicSlug || (post.category || "umum").toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}>
-                {post.topicName || post.category || "Umum"}
-              </Link>
-            </span>
+            {!post.anonymous && author.username && (
+              <UserHoverCard person={author}>
+                <Link
+                  href={`/profile/${author.username || author.localKey}`}
+                  className="post-author-username"
+                >
+                  @{author.username}
+                </Link>
+              </UserHoverCard>
+            )}
+            {isReport ? (
+              <>
+                <span className="post-meta-separator">in</span>
+                <span className="post-topic-name">
+                  <Link
+                    href={`/topics/${post.topicSlug || (post.category || "umum").toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
+                  >
+                    {post.topicName || post.category || "Umum"}
+                  </Link>
+                </span>
+              </>
+            ) : null}
             <span className="post-meta-dot">·</span>
             <span className="post-meta-time">{timeAgo}</span>
           </div>
-          <div className="post-meta-location">
-            <MapPin size={12} />
-            <span>{post.province || "Nasional"}</span>
-          </div>
+          {isReport && (
+            <div className="post-meta-location">
+              <MapPin size={12} />
+              <span>{post.province || "Nasional"}</span>
+            </div>
+          )}
         </div>
-        {post.kind === "report" && (
-          <span className={`badge ${closed ? result : ""}`}>
-            {closed ? (
-              result === "automatic" ? (
-                "Ditutup otomatis"
-              ) : (
-                <>
-                  <CheckCircle2 size={14} />
-                  Case Closed
-                </>
-              )
+        {isReport && reportStatus && (
+          <span
+            className={`report-status-badge report-status-badge--${reportStatus}`}
+          >
+            {reportStatus === "completed" ? (
+              <>
+                <CheckCircle2 size={13} strokeWidth={2} />
+                <span>Selesai</span>
+              </>
+            ) : reportStatus === "closed_internal" ? (
+              <>
+                <XCircle size={13} strokeWidth={2} />
+                <span>Ditutup</span>
+              </>
+            ) : reportStatus === "in_progress" ? (
+              <>
+                <Timer size={13} strokeWidth={2} />
+                <span>Diproses</span>
+              </>
             ) : (
-              "Laporan"
+              <>
+                <Timer size={13} strokeWidth={2} />
+                <span>Menunggu</span>
+              </>
             )}
           </span>
         )}
@@ -128,30 +238,52 @@ export function PostCard({
       {detail ? (
         <div className="post-content">{text}</div>
       ) : (
-        <Link className="post-content post-link" href={href}>
+        <div
+          className="post-content post-link"
+          style={{ cursor: "pointer" }}
+          onClick={(e) => {
+            if (
+              !(e.target as HTMLElement).closest(
+                "a, button, .user-hover-trigger-wrap",
+              )
+            ) {
+              router.push(href);
+            }
+          }}
+        >
           {text}
-        </Link>
+        </div>
       )}
       {post.tags && post.tags.length > 0 && (
         <div className="post-tags">
           {post.tags.map((tag) => (
-            <Link key={tag} href={`/explore?q=${encodeURIComponent('#' + tag)}`} className="post-tag-item">
+            <Link
+              key={tag}
+              href={`/explore?q=${encodeURIComponent("#" + tag)}`}
+              className="post-tag-item"
+            >
               #{tag}
             </Link>
           ))}
         </div>
       )}
       {post.kind === "report" && post.agencyKeys.length > 0 && (
-        <>
-          <p className="agency-tags">
-            {post.agencyKeys
-              .map(
-                (key) =>
-                  `@${people.find((person) => person.localKey === key)?.username}`,
-              )
-              .join("  ")}
-          </p>
-        </>
+        <div className="agency-tags">
+          {post.agencyKeys.map((key) => {
+            const agency = people.find((person) => person.localKey === key);
+            if (!agency) return null;
+            return (
+              <UserHoverCard person={agency} key={key}>
+                <Link
+                  href={`/profile/${agency.username || agency.localKey}`}
+                  className="mention-link"
+                >
+                  @{agency.username}
+                </Link>
+              </UserHoverCard>
+            );
+          })}
+        </div>
       )}
       {!!post.images.length && (
         <div className="photo-grid">
@@ -159,26 +291,6 @@ export function PostCard({
             <img src={src} alt={`Foto postingan ${index + 1}`} key={src} />
           ))}
         </div>
-      )}
-      {resolution && (
-        <Link
-          href={`${href}#evidence`}
-          className={`evidence-link ${result ?? ""}`}
-        >
-          {result === "failed" ? (
-            <AlertCircle size={16} />
-          ) : closed ? (
-            <CheckCircle2 size={16} />
-          ) : null}
-          {result === "failed"
-            ? "Pengajuan gagal · Laporan tetap terbuka"
-            : result === "automatic"
-              ? "Ditutup otomatis · Tidak ada suara"
-              : result === "success"
-                ? "Ditutup · Lihat hasil validasi"
-                : "Pengajuan penyelesaian · Lihat bukti"}{" "}
-          →
-        </Link>
       )}
       <footer className="post-actions">
         <Button
@@ -201,7 +313,11 @@ export function PostCard({
         >
           <ArrowBigDown size={18} strokeWidth={1.8} />
         </Button>
-        <Link href={href} className="button button--ghost" aria-label="Buka komentar">
+        <Link
+          href={href}
+          className="button button--ghost"
+          aria-label="Buka komentar"
+        >
           <MessageCircle size={18} strokeWidth={1.8} />
           <small>{post.replies.length}</small>
         </Link>

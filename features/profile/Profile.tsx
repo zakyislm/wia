@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { useDemo } from "@/features/auth/DemoProvider";
 import { ProductShell } from "@/components/layout/ProductShell";
 import { Avatar } from "@/components/ui/Avatar";
+import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
 import { PostCard } from "@/features/posts/PostCard";
@@ -24,36 +25,73 @@ function EditProfile({
   const [image, setImage] = useState(person.image);
   const [error, setError] = useState("");
   const [discard, setDiscard] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const created = useRef<string[]>([]);
   const dirty =
     name !== person.name ||
     bio !== person.bio ||
     region !== (person.region ?? "") ||
     image !== person.image;
+
   function close() {
     created.current.forEach((url) => URL.revokeObjectURL(url));
     onClose();
   }
+
   function requestClose() {
     if (dirty) setDiscard(true);
     else close();
   }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
+    const message = photoError(files, 0);
+    if (message) {
+      setError(message);
+      return;
+    }
+    const url = URL.createObjectURL(files[0]);
+    created.current.push(url);
+    setImage(url);
+    setError("");
+    e.target.value = "";
+  }
+
   return (
-    <Dialog title="Edit profil" onClose={requestClose}>
+    <Dialog
+      title="Edit profil"
+      onClose={requestClose}
+      className="profile-edit-dialog"
+    >
       {discard ? (
-        <div className="dialog-body">
-          <h3>Buang perubahan profil?</h3>
-          <p>Perubahan yang belum disimpan akan hilang.</p>
-          <div className="button-row">
-            <Button variant="secondary" onClick={() => setDiscard(false)}>
+        <div className="profile-edit-body profile-discard-view">
+          <div className="profile-discard-copy">
+            <h3>Buang perubahan?</h3>
+            <p className="muted">
+              Perubahan yang baru kamu tulis belum disimpan.
+            </p>
+          </div>
+          <div className="profile-edit-footer">
+            <button
+              type="button"
+              className="composer-cancel-btn"
+              onClick={() => setDiscard(false)}
+            >
               Lanjut mengedit
-            </Button>
-            <Button onClick={close}>Buang perubahan</Button>
+            </button>
+            <button
+              type="button"
+              className="composer-post-btn"
+              onClick={close}
+            >
+              Buang
+            </button>
           </div>
         </div>
       ) : (
         <form
-          className="dialog-body"
+          className="profile-edit-body"
           onSubmit={(e) => {
             e.preventDefault();
             if (user?.localKey !== person.localKey) return;
@@ -80,75 +118,112 @@ function EditProfile({
             onClose();
           }}
         >
-          <div className="profile-photo">
-            <Avatar name={name || person.name} src={image} />
-            <label>
-              Ganti foto
+          <div className="profile-edit-photo-row">
+            <button
+              type="button"
+              className="profile-edit-avatar-btn"
+              onClick={() => fileInputRef.current?.click()}
+              aria-label="Ubah foto profil"
+            >
+              <Avatar name={name || person.name} src={image} />
+            </button>
+            <div className="profile-edit-photo-meta">
+              <div className="profile-edit-photo-actions">
+                <button
+                  type="button"
+                  className="profile-photo-upload-btn"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  Ubah foto
+                </button>
+                {image && (
+                  <button
+                    type="button"
+                    className="profile-photo-remove-btn"
+                    onClick={() => setImage(undefined)}
+                  >
+                    Hapus
+                  </button>
+                )}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  style={{ display: "none" }}
+                  onChange={handleFileChange}
+                />
+              </div>
+              <span className="profile-edit-photo-hint">
+                JPG, PNG, atau WebP · Maks. 10 MB
+              </span>
+            </div>
+          </div>
+
+          <div className="profile-edit-fields">
+            <label className="profile-edit-field">
+              <span className="profile-edit-label-row">
+                <span>Nama tampilan</span>
+                <small>{name.length}/60</small>
+              </span>
               <input
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
+                value={name}
+                maxLength={60}
+                placeholder="Nama lengkap atau panggilan"
                 onChange={(e) => {
-                  const files = Array.from(e.target.files ?? []);
-                  if (!files.length) return;
-                  const message = photoError(files, 0);
-                  if (message) {
-                    setError(message);
-                    return;
-                  }
-                  const url = URL.createObjectURL(files[0]);
-                  created.current.push(url);
-                  setImage(url);
+                  setName(e.target.value);
                   setError("");
-                  e.target.value = "";
                 }}
               />
             </label>
-            {image && (
-              <Button variant="ghost" onClick={() => setImage(undefined)}>
-                Hapus foto
-              </Button>
-            )}
+
+            <label className="profile-edit-field">
+              <span className="profile-edit-label-row">
+                <span>Bio</span>
+                <small>{bio.length}/160</small>
+              </span>
+              <textarea
+                value={bio}
+                rows={3}
+                maxLength={160}
+                placeholder="Ceritakan sedikit tentang dirimu atau fokus kegiatanmu"
+                onChange={(e) => setBio(e.target.value)}
+              />
+            </label>
+
+            <label className="profile-edit-field">
+              <span className="profile-edit-label-row">
+                <span>Domisili</span>
+              </span>
+              <input
+                value={region}
+                maxLength={80}
+                onChange={(e) => setRegion(e.target.value)}
+                placeholder="Contoh: Bandung, Jawa Barat"
+              />
+            </label>
           </div>
-          <label>
-            Nama tampilan
-            <input
-              value={name}
-              maxLength={60}
-              onChange={(e) => setName(e.target.value)}
-            />
-          </label>
-          <label>
-            Bio
-            <textarea
-              value={bio}
-              rows={3}
-              maxLength={280}
-              onChange={(e) => setBio(e.target.value)}
-            />
-          </label>
-          <label>
-            Wilayah
-            <input
-              value={region}
-              maxLength={80}
-              onChange={(e) => setRegion(e.target.value)}
-              placeholder="Kota / provinsi"
-            />
-          </label>
-          <p className="small muted">
-            Username, email, dan peran akun dikelola oleh backend. Foto hanya
-            tersimpan dalam sesi demo, maksimal 10 MB (JPG, PNG, WebP).
-          </p>
+
           {error && (
-            <p role="alert" className="error">
+            <p role="alert" className="composer-error">
               {error}
             </p>
           )}
-          <div className="button-row">
-            <Button variant="ghost" onClick={requestClose}>
+
+          <div className="profile-edit-footer">
+            <button
+              type="button"
+              className="composer-cancel-btn"
+              onClick={requestClose}
+            >
               Batal
-            </Button>
-            <Button type="submit">Simpan perubahan</Button>
+            </button>
+            <button
+              type="submit"
+              className="composer-post-btn"
+              disabled={!dirty || !name.trim()}
+            >
+              Simpan
+            </button>
           </div>
         </form>
       )}
@@ -210,7 +285,7 @@ export function Profile({ profileKey }: { profileKey?: string }) {
                 <div>
                   <h2>
                     {person.name}
-                    {person.role === "GOVERNMENT" ? " ✓" : ""}
+                    <VerifiedBadge role={person.role} size={20} />
                   </h2>
                   <p className="muted">@{person.username}</p>
                 </div>
@@ -231,8 +306,7 @@ export function Profile({ profileKey }: { profileKey?: string }) {
                 ·{" "}
                 <button onClick={() => setRelation("following")}>
                   {own ? following.length : 0} mengikuti
-                </button>{" "}
-                · Data demo
+                </button>
               </div>
               {own ? (
                 <Button variant="secondary" onClick={() => setEditing(true)}>
@@ -300,7 +374,7 @@ export function Profile({ profileKey }: { profileKey?: string }) {
         ) : (
           <div className="empty-state">
             <h2>Akun tidak ditemukan</h2>
-            <p>Akun ini tidak tersedia dalam sesi demo.</p>
+            <p>Akun ini tidak tersedia.</p>
           </div>
         )}
       </section>
@@ -331,9 +405,6 @@ export function Profile({ profileKey }: { profileKey?: string }) {
                 </span>
               </Link>
             ))}
-            <p className="small muted">
-              Daftar menampilkan relasi yang tersedia dalam sesi demo.
-            </p>
           </div>
         </Dialog>
       )}

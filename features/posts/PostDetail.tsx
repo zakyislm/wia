@@ -5,7 +5,6 @@ import { useDemo } from "@/features/auth/DemoProvider";
 import { ProductShell } from "@/components/layout/ProductShell";
 import { PostCard } from "./PostCard";
 import { CommentThread } from "./CommentThread";
-import { ResolutionPanel } from "@/features/validation/ResolutionPanel";
 
 export function PostDetail({
   postKey,
@@ -19,21 +18,19 @@ export function PostDetail({
     (item) => item.localKey === postKey && !item.isDeleted,
   );
   return (
-    <ProductShell title={branchKey ? "Cabang percakapan" : "Postingan"}>
-      <section className="feed-surface">
+    <ProductShell hideHeader>
+      <section className="feed-surface post-detail-surface">
         <Link
           href={branchKey ? `/posts/${postKey}` : "/home"}
-          className="back-link"
+          className="post-detail-back-btn"
+          aria-label={branchKey ? "Kembali ke postingan" : "Kembali ke beranda"}
+          title={branchKey ? "Kembali ke postingan" : "Kembali ke beranda"}
         >
-          <ArrowLeft size={18} />
-          {branchKey ? "Kembali ke postingan" : "Kembali ke beranda"}
+          <ArrowLeft size={18} strokeWidth={2} />
         </Link>
         {post ? (
           <>
             <PostCard post={post} detail />
-            {post.kind === "report" && !branchKey && (
-              <ResolutionPanel post={post} />
-            )}
             {branchKey &&
               post.replies.find((reply) => reply.localKey === branchKey) && (
                 <div className="section-pad branch-context">

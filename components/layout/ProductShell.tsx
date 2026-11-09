@@ -18,7 +18,9 @@ import {
 import { useDemo } from "@/features/auth/DemoProvider";
 import { Login } from "@/features/auth/Login";
 import { Composer } from "@/features/posts/Composer";
+import { CreateDropdown } from "@/components/layout/CreateDropdown";
 import { Avatar } from "@/components/ui/Avatar";
+import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { Button } from "@/components/ui/Button";
 
 const destinations = [
@@ -51,8 +53,9 @@ export function ProductShell({
   hideHeader?: boolean;
 }) {
   const { people, posts, user, following, setFollowing } = useDemo();
-  const [composer, setComposer] = useState(false);
+  const [composerMode, setComposerMode] = useState<"post" | "report" | null>(null);
   const [searchModal, setSearchModal] = useState(false);
+  const showRightSidebar = active === "home" || active === "explore";
 
   const topTrendingPost = useMemo(() => {
     const candidates = posts.filter((p) => !p.isDeleted && !p.hidden);
@@ -78,7 +81,7 @@ export function ProductShell({
   if (!user) return <Login />;
   return (
     <div
-      className={`product ${wide ? "product--messages" : ""}`}
+      className={`product ${wide ? "product--messages" : ""} ${!showRightSidebar ? "product--no-support" : ""}`.trim()}
     >
       <a className="skip-link" href="#main-content">
         Lewati navigasi
@@ -113,10 +116,7 @@ export function ProductShell({
             </Link>
           )}
         </nav>
-        <Button className="compose-nav" onClick={() => setComposer(true)}>
-          <Plus />
-          <span>Buat Postingan</span>
-        </Button>
+        <CreateDropdown onSelectOption={(m) => setComposerMode(m)} />
         <Link
           href="/profile/@me"
           className={`nav-item sidebar-account ${active === "profile" ? "active" : ""}`}
@@ -143,75 +143,71 @@ export function ProductShell({
           </header>
         )}
         {children}
-        <Button
-          className="floating-compose"
-          aria-label="Buat postingan"
-          onClick={() => setComposer(true)}
-        >
-          <Plus />
-        </Button>
+        <CreateDropdown onSelectOption={(m) => setComposerMode(m)} isMobileFloating />
       </main>
-      <aside className="support-column">
-        <div className="support-search-wrapper">
-          <button
-            type="button"
-            className="search-box search-box-trigger"
-          onClick={() => setSearchModal(true)}
-          aria-label="Cari di KAVI"
-        >
-          <div className="search-box-left">
-            <Search size={16} />
-            <span>Cari di KAVI</span>
-          </div>
-          </button>
-        </div>
-        {/* KAVI News Of The Day */}
-        <NewsOfTheDayCard post={topTrendingPost} />
-
-        {/* Highlight Trending Tags */}
-        <HighlightSection />
-
-        <section className="suggestions">
-          <h2>Temukan suara baru</h2>
-          {people
-            .filter((person) =>
-              ["pupr", "komunitas", "dishub"].includes(person.localKey),
-            )
-            .map((person) => (
-              <div className="suggestion" key={person.localKey}>
-                <Avatar name={person.name} src={person.image} />
-                <div>
-                  <strong>
-                    <Link href={`/profile/${person.localKey}`}>
-                      {person.name}
-                    </Link>
-                    {person.role === "GOVERNMENT" ? " ✓" : ""}
-                  </strong>
-                  <small>{person.bio}</small>
-                </div>
-                <Button
-                  variant="secondary"
-                  onClick={() =>
-                    setFollowing((current) =>
-                      current.includes(person.localKey)
-                        ? current.filter((key) => key !== person.localKey)
-                        : [...current, person.localKey],
-                    )
-                  }
-                >
-                  {following.includes(person.localKey) ? "Diikuti" : "Ikuti"}
-                </Button>
+      {showRightSidebar && (
+        <aside className="support-column">
+          <div className="support-search-wrapper">
+            <button
+              type="button"
+              className="search-box search-box-trigger"
+              onClick={() => setSearchModal(true)}
+              aria-label="Cari di KAVI"
+            >
+              <div className="search-box-left">
+                <Search size={16} />
+                <span>Cari di KAVI</span>
               </div>
-            ))}
-        </section>
-        <p className="footer-note">
-          <Link href="/settings">Pengaturan</Link> ·{" "}
-          <Link href="/help">Bantuan</Link>
-          <br />
-          KAVI · Ruang bersama untuk perubahan.
-          <br />© 2026 KAVI · Konten contoh
-        </p>
-      </aside>
+            </button>
+          </div>
+          {/* KAVI News Of The Day */}
+          <NewsOfTheDayCard post={topTrendingPost} />
+
+          {/* Highlight Trending Tags */}
+          <HighlightSection />
+
+          <section className="suggestions">
+            <h2>Temukan suara baru</h2>
+            {people
+              .filter((person) =>
+                ["pupr", "komunitas", "dishub"].includes(person.localKey),
+              )
+              .map((person) => (
+                <div className="suggestion" key={person.localKey}>
+                  <Avatar name={person.name} src={person.image} />
+                  <div>
+                    <strong>
+                      <Link href={`/profile/${person.localKey}`}>
+                        {person.name}
+                      </Link>
+                      <VerifiedBadge role={person.role} size={15} />
+                    </strong>
+                    <small>{person.bio}</small>
+                  </div>
+                  <Button
+                    variant="secondary"
+                    onClick={() =>
+                      setFollowing((current) =>
+                        current.includes(person.localKey)
+                          ? current.filter((key) => key !== person.localKey)
+                          : [...current, person.localKey],
+                      )
+                    }
+                  >
+                    {following.includes(person.localKey) ? "Diikuti" : "Ikuti"}
+                  </Button>
+                </div>
+              ))}
+          </section>
+          <p className="footer-note">
+            <Link href="/settings">Pengaturan</Link> ·{" "}
+            <Link href="/help">Bantuan</Link>
+            <br />
+            KAVI · Ruang bersama untuk perubahan.
+            <br />© 2026 KAVI · Konten contoh
+          </p>
+        </aside>
+      )}
       <nav className="mobile-island" aria-label="Navigasi seluler">
         <Link
           href="/home"
@@ -232,7 +228,7 @@ export function ProductShell({
         <button
           className="island-compose"
           aria-label="Buat postingan"
-          onClick={() => setComposer(true)}
+          onClick={() => setComposerMode("post")}
         >
           <Plus />
         </button>
@@ -261,7 +257,12 @@ export function ProductShell({
           <UserRound />
         </Link>
       </nav>
-      {composer && <Composer onClose={() => setComposer(false)} />}
+      {composerMode && (
+        <Composer
+          initialMode={composerMode}
+          onClose={() => setComposerMode(null)}
+        />
+      )}
       <QuickSearchModal
         isOpen={searchModal}
         onClose={() => setSearchModal(false)}

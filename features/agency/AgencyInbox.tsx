@@ -2,6 +2,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ProductShell } from "@/components/layout/ProductShell";
+import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { PostCard } from "@/features/posts/PostCard";
 import { useDemo } from "@/features/auth/DemoProvider";
 import { closureDate } from "@/features/discovery/filters";
@@ -42,7 +43,10 @@ export function AgencyInbox() {
         ) : (
           <>
             <div className="section-pad stack content-toolbar">
-              <p className="muted">{user.name} ✓ · Daftar privat</p>
+              <p className="muted">
+                {user.name} <VerifiedBadge role={user.role} size={15} /> · Daftar
+                privat
+              </p>
               <label>
                 Cari laporan yang menandai instansi
                 <input
