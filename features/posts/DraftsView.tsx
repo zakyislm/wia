@@ -56,7 +56,7 @@ export function DraftsView({
 
   return (
     <div className="composer-drafts-container">
-      {/* Header Row: [<] Drafts */}
+      {/* Fixed Top Header Row: [<] Drafts */}
       <div className="composer-drafts-header">
         <button
           type="button"
@@ -67,109 +67,109 @@ export function DraftsView({
           <ChevronLeft size={20} strokeWidth={2} />
         </button>
         <h2 className="composer-drafts-title">Drafts</h2>
-        <div style={{ width: 28 }} />
+        <div className="composer-drafts-header-spacer" aria-hidden="true" />
       </div>
 
-      {/* Search Bar */}
-      <div className="composer-drafts-search-box">
-        <Search size={16} strokeWidth={2} className="composer-drafts-search-icon" />
-        <input
-          type="text"
-          className="composer-drafts-search-input"
-          placeholder="Cari draft..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-        />
-        {searchQuery && (
-          <button
-            type="button"
-            className="composer-drafts-search-clear"
-            onClick={() => setSearchQuery("")}
-            aria-label="Hapus pencarian"
-          >
-            <X size={13} />
-          </button>
-        )}
-      </div>
-
-      {/* Create New Draft Button */}
-      <button
-        type="button"
-        className="composer-drafts-create-btn"
-        onClick={onCreateNew}
-      >
-        <span className="composer-drafts-create-icon">
-          <Plus size={18} strokeWidth={2} />
-        </span>
-        <span className="composer-drafts-create-text">Create new</span>
-      </button>
-
-      {/* Drafts List */}
-      <div className="composer-drafts-list">
-        {filteredDrafts.map((draft) => {
-          const previewText =
-            draft.title.trim() ||
-            draft.content.trim() ||
-            "Draft tanpa judul";
-
-          return (
-            <div
-              key={draft.id}
-              className="composer-draft-item"
-              onClick={() => onSelectDraft(draft)}
+      {/* Scrollable Body: Search Bar + Create New + Drafts List */}
+      <div className="composer-drafts-scroll">
+        <div className="composer-drafts-search-box">
+          <Search size={16} strokeWidth={2} className="composer-drafts-search-icon" />
+          <input
+            type="text"
+            className="composer-drafts-search-input"
+            placeholder="Cari draft..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              className="composer-drafts-search-clear"
+              onClick={() => setSearchQuery("")}
+              aria-label="Hapus pencarian"
             >
-              <div className="composer-draft-avatar-col">
-                <Avatar name={user?.name ?? "User"} src={user?.image} />
-              </div>
-              <div className="composer-draft-content-col">
-                <strong className="composer-draft-headline">
-                  {previewText}
-                </strong>
-                <span className="composer-draft-timestamp">
-                  {formatDraftTime(draft.updatedAt)}
-                </span>
-              </div>
+              <X size={13} />
+            </button>
+          )}
+        </div>
 
-              {/* Action Menu (Delete) */}
-              <div className="composer-draft-action-col">
-                <button
-                  type="button"
-                  className="composer-draft-more-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setActiveMenuId(activeMenuId === draft.id ? null : draft.id);
-                  }}
-                  aria-label="Opsi draft"
-                >
-                  <MoreHorizontal size={18} />
-                </button>
+        <button
+          type="button"
+          className="composer-drafts-create-btn"
+          onClick={onCreateNew}
+        >
+          <span className="composer-drafts-create-icon">
+            <Plus size={18} strokeWidth={2} />
+          </span>
+          <span className="composer-drafts-create-text">Create new</span>
+        </button>
 
-                {activeMenuId === draft.id && (
-                  <div className="composer-draft-menu-popover">
-                    <button
-                      type="button"
-                      className="composer-draft-delete-btn"
-                      onClick={(e) => handleDelete(draft.id, e)}
-                    >
-                      <Trash2 size={14} />
-                      <span>Hapus draft</span>
-                    </button>
-                  </div>
-                )}
+        <div className="composer-drafts-list">
+          {filteredDrafts.map((draft) => {
+            const previewText =
+              draft.title.trim() ||
+              draft.content.trim() ||
+              "Draft tanpa judul";
+
+            return (
+              <div
+                key={draft.id}
+                className="composer-draft-item"
+                onClick={() => onSelectDraft(draft)}
+              >
+                <div className="composer-draft-avatar-col">
+                  <Avatar name={user?.name ?? "User"} src={user?.image} />
+                </div>
+                <div className="composer-draft-content-col">
+                  <strong className="composer-draft-headline">
+                    {previewText}
+                  </strong>
+                  <span className="composer-draft-timestamp">
+                    {formatDraftTime(draft.updatedAt)}
+                  </span>
+                </div>
+
+                {/* Action Menu (Delete) */}
+                <div className="composer-draft-action-col">
+                  <button
+                    type="button"
+                    className="composer-draft-more-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveMenuId(activeMenuId === draft.id ? null : draft.id);
+                    }}
+                    aria-label="Opsi draft"
+                  >
+                    <MoreHorizontal size={18} />
+                  </button>
+
+                  {activeMenuId === draft.id && (
+                    <div className="composer-draft-menu-popover">
+                      <button
+                        type="button"
+                        className="composer-draft-delete-btn"
+                        onClick={(e) => handleDelete(draft.id, e)}
+                      >
+                        <Trash2 size={14} />
+                        <span>Hapus draft</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
+            );
+          })}
+
+          {filteredDrafts.length === 0 && (
+            <div className="composer-drafts-empty">
+              <p>
+                {searchQuery
+                  ? "Tidak ada draft yang cocok dengan pencarian."
+                  : "Belum ada draft tersimpan."}
+              </p>
             </div>
-          );
-        })}
-
-        {filteredDrafts.length === 0 && (
-          <div className="composer-drafts-empty">
-            <p>
-              {searchQuery
-                ? "Tidak ada draft yang cocok dengan pencarian."
-                : "Belum ada draft tersimpan."}
-            </p>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );

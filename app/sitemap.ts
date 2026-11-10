@@ -56,7 +56,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     });
 
     const topicRoutes: MetadataRoute.Sitemap = allTopics.map((topic) => ({
-      url: `${baseUrl}/topics/${topic.slug}`,
+      url: `${baseUrl}/explore/topics/${topic.slug}`,
       lastModified: topic.createdAt,
       changeFrequency: "daily",
       priority: 0.8,

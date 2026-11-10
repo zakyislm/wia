@@ -27,6 +27,7 @@ export const people: Person[] = [
     name: "Dinas PUPR Bandung",
     username: "DinasPUPR",
     role: "GOVERNMENT",
+    region: "Bandung, Jawa Barat",
     bio: "Infrastruktur dan ruang publik Bandung.",
   },
   {
@@ -43,7 +44,17 @@ export const people: Person[] = [
     name: "Dinas Perhubungan",
     username: "DishubBandung",
     role: "GOVERNMENT",
+    region: "Bandung, Jawa Barat",
     bio: "Bergerak bersama untuk Bandung.",
+  },
+  {
+    id: "",
+    localKey: "pemprov_jabar",
+    name: "Pemprov Jawa Barat",
+    username: "PemprovJabar",
+    role: "GOVERNMENT",
+    region: "Jawa Barat",
+    bio: "Kanal resmi Pemerintah Provinsi Jawa Barat.",
   },
   {
     id: "",
@@ -51,6 +62,7 @@ export const people: Person[] = [
     name: "Zaky The Flymost",
     username: "zakyflymost",
     role: "INTERNAL",
+    region: "Indonesia",
     bio: "Tim Internal & Moderasi KAVI.",
   },
 ];
@@ -117,6 +129,7 @@ export function seedPosts(baseTime = 1794040000000): Post[] {
     content:
       "Trotoar yang aman untuk semua pejalan kaki.\n\nTrotoar di Jl. Merdeka rusak dan berlubang cukup parah setelah galian utilitas. Membahayakan anak sekolah dan lansia yang melintas setiap pagi. Mohon penanganan dari pihak terkait.",
     province: "Jawa Barat",
+    locationName: "Sumur Bandung, Bandung, Jawa Barat",
     category: "Infrastruktur",
     images: [
       "https://images.unsplash.com/photo-1578916171728-46686eac8d58?q=80&w=720&auto=format&fit=crop",
@@ -222,9 +235,9 @@ export function seedPosts(baseTime = 1794040000000): Post[] {
   const postNadia: Post = {
     id: "",
     authorId: "",
-    topicId: "top_rth",
-    topicSlug: "ruang-terbuka-hijau",
-    topicName: "Ruang Terbuka Hijau",
+    topicId: "top_lingkungan",
+    topicSlug: "lingkungan-kebersihan",
+    topicName: "Lingkungan & Kebersihan",
     localKey: "ruang-hijau",
     authorKey: "nadia",
     postedAt: now - 8 * 3600000,
@@ -233,7 +246,7 @@ export function seedPosts(baseTime = 1794040000000): Post[] {
     content:
       "Ruang terbuka hijau di lingkungan kita tuh beneran bikin pikiran adem setelah seminggu kerja. Yuk rawat bareng-bareng jangan buang puntung rokok sembarangan ya kawan-kawan 🌿🌳",
     province: "Jawa Barat",
-    category: "Komunitas",
+    category: "Lingkungan & Kebersihan",
     tags: ["RuangTerbukaHijau", "Lingkungan", "Bandung"],
     agencyKeys: [],
     images: [
@@ -249,6 +262,11 @@ export function seedPosts(baseTime = 1794040000000): Post[] {
   // 5. Laporan warga: Lampu Jalan Padam (Selesai — Closed by Aparat)
   const reportLampu: Post = {
     ...reportMerdeka,
+    topicId: "top_utilitas",
+    topicSlug: "air-utilitas",
+    topicName: "Air & Utilitas",
+    category: "Air & Utilitas",
+    locationName: "Bandung, Jawa Barat",
     localKey: "contoh-success",
     postedAt: now - 24 * 3600000,
     reportStatus: "completed",
@@ -301,6 +319,11 @@ export function seedPosts(baseTime = 1794040000000): Post[] {
   // 6. Laporan warga: Akses Halte Rusak (Menunggu — Fresh Report)
   const reportHalte: Post = {
     ...reportMerdeka,
+    topicId: "top_transportasi",
+    topicSlug: "transportasi",
+    topicName: "Transportasi",
+    category: "Transportasi",
+    locationName: "Cihampelas, Bandung, Jawa Barat",
     localKey: "contoh-failed",
     postedAt: now - 48 * 3600000,
     reportStatus: "waiting",
@@ -331,6 +354,34 @@ export function seedPosts(baseTime = 1794040000000): Post[] {
     resolutions: [],
   };
 
+  // 7. Laporan warga di Jakarta Barat (tanpa @tag, menguji hirarki wilayah)
+  const reportTamansari: Post = {
+    id: "",
+    authorId: "",
+    topicId: "top_layanan",
+    topicSlug: "layanan-publik",
+    topicName: "Layanan Publik",
+    localKey: "antrean-tamansari",
+    authorKey: "nadia",
+    postedAt: now - 6 * 3600000,
+    kind: "report",
+    reportStatus: "waiting",
+    anonymous: false,
+    content:
+      "Loket layanan kependudukan kelurahan lambat.\n\nAntrean perekaman e-KTP di wilayah Tamansari pagi ini menumpuk lebih dari 2 jam tanpa kepastian nomor panggil.",
+    province: "DKI Jakarta",
+    locationName: "Tamansari, Jakarta Barat, DKI Jakarta",
+    category: "Layanan Publik",
+    tags: ["LayananPublik", "Tamansari"],
+    agencyKeys: [],
+    images: [],
+    upvotesCount: 31,
+    vote: null,
+    reposted: false,
+    replies: [],
+    resolutions: [],
+  };
+
   return [
     postAlya,
     reportMerdeka,
@@ -338,5 +389,6 @@ export function seedPosts(baseTime = 1794040000000): Post[] {
     postNadia,
     reportLampu,
     reportHalte,
+    reportTamansari,
   ];
 }

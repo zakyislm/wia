@@ -13,6 +13,10 @@ const plusJakartaSans = Plus_Jakarta_Sans({
 export const metadata: Metadata = {
   title: "Kavi",
   description: "Platform Laporan & Diskusi Publik",
+  icons: {
+    icon: "/kavi.png",
+    apple: "/kavi.png",
+  },
 };
 
 export default function RootLayout({

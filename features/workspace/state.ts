@@ -5,11 +5,13 @@ export interface DemoMessage {
   outgoing: boolean;
   text: string;
   time: string;
+  images?: string[];
 }
 export interface Conversation {
   id: "";
   localKey: string;
   partnerKey: string;
+  unread?: boolean;
   messages: DemoMessage[];
 }
 export interface Workspace {
@@ -37,6 +39,7 @@ export function seedWorkspace(): Workspace {
         id: "",
         localKey: "nadia",
         partnerKey: "nadia",
+        unread: true,
         messages: [
           {
             id: "",
@@ -52,6 +55,7 @@ export function seedWorkspace(): Workspace {
         id: "",
         localKey: "komunitas",
         partnerKey: "komunitas",
+        unread: true,
         messages: [
           {
             id: "",
@@ -60,6 +64,22 @@ export function seedWorkspace(): Workspace {
             outgoing: false,
             text: "Halo! Ada ide kegiatan warga untuk akhir pekan ini?",
             time: "09.45",
+          },
+        ],
+      },
+      {
+        id: "",
+        localKey: "dishub",
+        partnerKey: "dishub",
+        unread: false,
+        messages: [
+          {
+            id: "",
+            authorId: "",
+            localKey: "sent-dishub",
+            outgoing: true,
+            text: "Terima kasih atas perbaikan lampu PJU di perempatan Jl. Riau.",
+            time: "Kemarin",
           },
         ],
       },

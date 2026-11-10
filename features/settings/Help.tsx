@@ -25,9 +25,9 @@ export function Help() {
           text: "Pengajuan bukti/argumen membuka validasi 72 jam. Semua akun yang masuk dapat memilih dan mengubah suara sebelum tenggat. Persentase tampil setelah memilih atau periode berakhir. Hasil minimal 80% menutup laporan; tanpa suara ditutup otomatis dengan alasan jelas; hasil lainnya tetap terbuka dan dapat diajukan ulang. Closed tetap mengizinkan diskusi.",
         },
         {
-          key: "timeline",
-          title: "Timeline Kinerja",
-          text: "Direktori laporan Closed yang membuka postingan asli, termasuk penutupan tanpa suara. Pencarian mencocokkan semua instansi yang ditag. Timeline tidak memberikan peringkat atau kredit penyelesaian.",
+          key: "laporan",
+          title: "Laporan",
+          text: "Direktori seluruh laporan warga beserta status penanganan (Menunggu, Diproses, Selesai) dan filter pihak penangan Pemerintah atau Internal.",
         },
         {
           key: "verification",

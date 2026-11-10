@@ -12,6 +12,7 @@ export async function GET(req: NextRequest) {
     const province = searchParams.get("province");
     const topicId = searchParams.get("topicId");
     const tag = searchParams.get("tag");
+    const sort = (searchParams.get("sort") || "semua").toLowerCase();
     const limit = Math.min(parseInt(searchParams.get("limit") || "20", 10), 50);
 
     const currentUser = await getSessionUser(req);
@@ -56,10 +57,20 @@ export async function GET(req: NextRequest) {
       conditions.push(inArray(posts.authorId, followingIds));
     }
 
+    const orderBy =
+      sort === "ramai"
+        ? [
+            desc(sql`${posts.upvotesCount} + ${posts.downvotesCount} + ${posts.commentsCount}`),
+            desc(posts.postedAt),
+          ]
+        : sort === "terbaru"
+          ? [desc(posts.postedAt)]
+          : [desc(posts.isPinned), desc(posts.postedAt)];
+
     // 3. Query posts with relation joins
     const rawPosts = await db.query.posts.findMany({
       where: and(...conditions),
-      orderBy: [desc(posts.isPinned), desc(posts.postedAt)],
+      orderBy,
       limit,
       with: {
         author: {
@@ -151,9 +162,20 @@ export async function GET(req: NextRequest) {
       commentsCount: post.commentsCount,
       repostsCount: post.repostsCount,
       viewsCount: post.viewsCount,
+      isAnonymous: post.isAnonymous,
       isPinned: post.isPinned,
       postedAt: post.postedAt,
-      author: post.author,
+      author: post.isAnonymous
+        ? {
+            id: "anonymous",
+            name: "Anonim",
+            username: "anonim",
+            image: null,
+            role: "USER",
+            agencyName: null,
+            jurisdictionProvince: null,
+          }
+        : post.author,
       topic: post.topic,
       tags: post.postTags.map((pt) => pt.tag),
       closedBy: post.closedBy,
@@ -198,6 +220,7 @@ export async function POST(req: NextRequest) {
       longitude,
       images = [],
       tags: inputTags = [],
+      isAnonymous = false,
     } = body;
 
     // Prevent rapid double-click duplicate post submission
@@ -257,6 +280,7 @@ export async function POST(req: NextRequest) {
       longitude: longitude ? parseFloat(longitude) : null,
       status: "OPEN",
       closeType: "NONE",
+      isAnonymous: Boolean(isAnonymous),
       postedAt: now,
       updatedAt: now,
     });

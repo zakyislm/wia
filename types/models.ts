@@ -37,6 +37,7 @@ export interface Reply {
   images?: string[];
   location?: string;
   is_action_taken?: boolean;
+  anonymous?: boolean;
   actionRole?: "GOVERNMENT" | "INTERNAL";
   actionTakenAt?: number;
   upvotesCount?: number;
@@ -75,11 +76,13 @@ export interface Post {
   anonymous: boolean;
   content: string;
   province: string;
+  locationName?: string;
   category: string;
   tags?: string[];
   agencyKeys: string[];
   images: string[];
   upvotesCount: number;
+  downvotesCount?: number;
   vote: Vote;
   reposted: boolean;
   saved?: boolean;

@@ -50,7 +50,7 @@ export async function GET() {
   - \`GET ${baseUrl}/api/analytics?username={username}\`: Individual citizen scorecard and civic resolution rate.
 
 ## Macro Topics (Taxonomy)
-${allTopics.map((t) => `- [${t.name}](${baseUrl}/topics/${t.slug})`).join("\n")}
+${allTopics.map((t) => `- [${t.name}](${baseUrl}/explore/topics/${t.slug})`).join("\n")}
 
 ## Recently Resolved Civic Reports (Proof of Work)
 ${

@@ -20,8 +20,8 @@ export function Verification() {
           <>
             <h2>Identitas instansi terverifikasi ✓</h2>
             <p>{user.name} memakai status instansi pada akun contoh.</p>
-            <Link href="/agency" className="button button--secondary">
-              Lihat laporan instansi
+            <Link href="/tugas" className="button button--secondary">
+              Lihat daftar tugas
             </Link>
           </>
         ) : workspace.verification.status === "submitted" ? (

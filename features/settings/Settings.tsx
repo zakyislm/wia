@@ -84,9 +84,9 @@ export function Settings() {
         <Link className="settings-link" href="/verification">
           Verifikasi instansi →
         </Link>
-        {user?.role === "GOVERNMENT" && (
-          <Link className="settings-link" href="/agency">
-            Daftar laporan instansi →
+        {(user?.role === "GOVERNMENT" || user?.role === "INTERNAL") && (
+          <Link className="settings-link" href="/tugas">
+            Daftar tugas penanganan →
           </Link>
         )}
         <Link className="settings-link" href="/help">

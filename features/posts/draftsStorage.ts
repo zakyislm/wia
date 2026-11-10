@@ -9,6 +9,7 @@ export interface ComposerDraft {
   location: string;
   tags: string[];
   images: string[];
+  anonymous?: boolean;
   updatedAt: number;
 }
 
@@ -49,7 +50,7 @@ export function deleteDraft(id: string): ComposerDraft[] {
   }
 }
 
-export function formatDraftTime(timestamp: number): string {
+export function formatDraftTime(timestamp: number, prefix = "Edited"): string {
   const d = new Date(timestamp);
   const months = [
     "Jan", "Feb", "Mar", "Apr", "Mei", "Jun",
@@ -59,5 +60,5 @@ export function formatDraftTime(timestamp: number): string {
   const month = months[d.getMonth()];
   const hours = String(d.getHours()).padStart(2, "0");
   const minutes = String(d.getMinutes()).padStart(2, "0");
-  return `Edited ${day} ${month}, ${hours}:${minutes}`;
+  return `${prefix} ${day} ${month}, ${hours}:${minutes}`;
 }

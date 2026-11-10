@@ -32,6 +32,8 @@ export function Login() {
             <option value="nadia">Nadia Putri · Warga</option>
             <option value="pupr">Dinas PUPR Bandung · Instansi</option>
             <option value="dishub">Dinas Perhubungan · Instansi</option>
+            <option value="pemprov_jabar">Pemprov Jawa Barat · Provinsi</option>
+            <option value="zaky_internal">Zaky The Flymost · Internal</option>
           </select>
         </label>
         <label>

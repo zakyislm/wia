@@ -1,20 +1,12 @@
 "use client";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Search, X, History, MapPin, LocateFixed, Check } from "lucide-react";
 import { Dialog } from "@/components/ui/Dialog";
+import { filterLocalLocations } from "@/lib/regions";
 
-const historyLocations = [
-  "Pelabuhan Tanjung Priok, Jakarta Utara, DKI Jakarta",
+const DEFAULT_HISTORY = [
   "Tamansari, Jakarta Barat, DKI Jakarta",
-];
-
-const suggestedLocations = [
-  "Pasar Gembrong, Jatinegara, Jakarta Timur, DKI Jakarta",
-  "Cilandak Barat, Cilandak, Jakarta Selatan, DKI Jakarta",
   "Sumur Bandung, Bandung, Jawa Barat",
-  "Coblong, Bandung, Jawa Barat",
-  "Tarakan Barat, Tarakan, Kalimantan Utara",
-  "Tanjung Selor, Bulungan, Kalimantan Utara",
 ];
 
 export function LocationSelectorModal({
@@ -29,38 +21,120 @@ export function LocationSelectorModal({
   selectedLocation?: string;
 }) {
   const [search, setSearch] = useState("");
+  const [history, setHistory] = useState<string[]>(DEFAULT_HISTORY);
+  const [remoteResults, setRemoteResults] = useState<string[]>([]);
+  const [searchingRemote, setSearchingRemote] = useState(false);
+  const [locating, setLocating] = useState(false);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("kavi_location_history");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setHistory(parsed.slice(0, 4));
+        }
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const clean = search.trim();
+    if (clean.length < 3) {
+      setRemoteResults([]);
+      setSearchingRemote(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      setSearchingRemote(true);
+      try {
+        const res = await fetch(
+          `/api/locations?q=${encodeURIComponent(clean)}`,
+          { signal: controller.signal },
+        );
+        if (res.ok) {
+          const json = (await res.json()) as { data?: string[] };
+          if (Array.isArray(json.data)) {
+            setRemoteResults(json.data);
+          }
+        }
+      } catch {
+        // Silent fallback to instant offline list
+      } finally {
+        if (!controller.signal.aborted) {
+          setSearchingRemote(false);
+        }
+      }
+    }, 280);
+
+    return () => {
+      controller.abort();
+      clearTimeout(timer);
+    };
+  }, [search, isOpen]);
+
+  function pickLocation(loc: string) {
+    const clean = loc.trim();
+    if (!clean) return;
+    const updated = [clean, ...history.filter((h) => h !== clean)].slice(0, 4);
+    setHistory(updated);
+    try {
+      localStorage.setItem("kavi_location_history", JSON.stringify(updated));
+    } catch {}
+    onSelect(clean);
+    onClose();
+  }
 
   const filteredHistory = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return historyLocations;
-    return historyLocations.filter((item) => item.toLowerCase().includes(q));
-  }, [search]);
+    if (!q) return history;
+    return history.filter((item) => item.toLowerCase().includes(q));
+  }, [history, search]);
 
   const filteredSuggestions = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return suggestedLocations;
-    return suggestedLocations.filter((item) => item.toLowerCase().includes(q));
-  }, [search]);
+    const local = filterLocalLocations(search, 12);
+    const merged = Array.from(new Set([...local, ...remoteResults]));
+    const historySet = new Set(filteredHistory);
+    return merged.filter((item) => !historySet.has(item));
+  }, [search, remoteResults, filteredHistory]);
 
   if (!isOpen) return null;
 
+  async function resolveCoords(lat: number, lon: number) {
+    try {
+      const res = await fetch(
+        `/api/locations?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`,
+      );
+      if (res.ok) {
+        const json = (await res.json()) as { data?: string[] };
+        if (json.data?.[0]) {
+          pickLocation(json.data[0]);
+          return;
+        }
+      }
+    } catch {}
+    pickLocation("Bandung, Jawa Barat");
+  }
+
   function handleUseCurrentLocation() {
-    // Quick auto-locate or browser geolocation
     if (typeof navigator !== "undefined" && navigator.geolocation) {
+      setLocating(true);
       navigator.geolocation.getCurrentPosition(
-        () => {
-          onSelect("Bandung, Jawa Barat");
-          onClose();
+        async (pos) => {
+          await resolveCoords(pos.coords.latitude, pos.coords.longitude);
+          setLocating(false);
         },
         () => {
-          onSelect("Bandung, Jawa Barat");
-          onClose();
+          setLocating(false);
+          pickLocation("Bandung, Jawa Barat");
         },
-        { timeout: 3000 }
+        { timeout: 3500 },
       );
     } else {
-      onSelect("Bandung, Jawa Barat");
-      onClose();
+      pickLocation("Bandung, Jawa Barat");
     }
   }
 
@@ -72,7 +146,7 @@ export function LocationSelectorModal({
             <input
               type="text"
               autoFocus
-              placeholder="Type Location..."
+              placeholder="Cari desa, kecamatan, kota, atau tempat..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="selector-search-input"
@@ -88,10 +162,11 @@ export function LocationSelectorModal({
           <button
             type="button"
             className="selector-locate-btn"
+            disabled={locating}
             onClick={handleUseCurrentLocation}
           >
             <LocateFixed size={16} />
-            <span>Use your location</span>
+            <span>{locating ? "Mendeteksi lokasi..." : "Use your location"}</span>
           </button>
         </div>
 
@@ -100,13 +175,10 @@ export function LocationSelectorModal({
             const isSelected = selectedLocation === loc;
             return (
               <button
-                key={loc}
+                key={`hist-${loc}`}
                 type="button"
                 className={`selector-item selector-item-location ${isSelected ? "selected" : ""}`}
-                onClick={() => {
-                  onSelect(loc);
-                  onClose();
-                }}
+                onClick={() => pickLocation(loc)}
               >
                 <History size={16} className="selector-item-icon muted" />
                 <span className="selector-item-name">{loc}</span>
@@ -122,10 +194,7 @@ export function LocationSelectorModal({
                 key={loc}
                 type="button"
                 className={`selector-item selector-item-location ${isSelected ? "selected" : ""}`}
-                onClick={() => {
-                  onSelect(loc);
-                  onClose();
-                }}
+                onClick={() => pickLocation(loc)}
               >
                 <MapPin size={16} className="selector-item-icon muted" />
                 <span className="selector-item-name">{loc}</span>
@@ -134,16 +203,19 @@ export function LocationSelectorModal({
             );
           })}
 
-          {filteredHistory.length === 0 &&
-            filteredSuggestions.length === 0 &&
-            search.trim() && (
+          {searchingRemote && (
+            <p className="small muted selector-searching-note">
+              Mencari wilayah Indonesia…
+            </p>
+          )}
+
+          {search.trim() &&
+            !filteredHistory.includes(search.trim()) &&
+            !filteredSuggestions.includes(search.trim()) && (
               <button
                 type="button"
                 className="selector-item selector-item-custom"
-                onClick={() => {
-                  onSelect(search.trim());
-                  onClose();
-                }}
+                onClick={() => pickLocation(search.trim())}
               >
                 <MapPin size={16} className="selector-item-icon muted" />
                 <span>Gunakan lokasi &ldquo;{search.trim()}&rdquo;</span>

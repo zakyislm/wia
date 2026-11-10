@@ -18,6 +18,18 @@ export const ALLOWED_MEDIA_TYPES = [
 
 const ALLOWED_EXTENSIONS = ["png", "jpg", "jpeg", "webp", "gif", "mp4", "webm"];
 
+export function extractClipboardMediaFiles(
+  clipboardData: DataTransfer | null,
+): File[] {
+  if (!clipboardData) return [];
+  const itemFiles = Array.from(clipboardData.items ?? [])
+    .filter((item) => item.kind === "file")
+    .map((item) => item.getAsFile())
+    .filter((file): file is File => Boolean(file));
+  if (itemFiles.length > 0) return itemFiles;
+  return Array.from(clipboardData.files ?? []);
+}
+
 export function mediaError(
   files: File[],
   existingCount: number,
@@ -31,7 +43,7 @@ export function mediaError(
       return "Format tidak didukung. Hanya mendukung PNG, JPG, WebP, GIF, MP4, atau WebM.";
     }
     if (file.size > 10 * 1024 * 1024) {
-      return `Ukuran file "${file.name}" melebihi batas 10 MB.`;
+      return `Ukuran file "${file.name || "tempelan"}" melebihi batas 10 MB.`;
     }
   }
   return null;

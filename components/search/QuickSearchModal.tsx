@@ -15,13 +15,114 @@ import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { useDemo } from "@/features/auth/DemoProvider";
 import { defaultTopics } from "@/components/selectors/TopicSelectorModal";
 
+import type { Person, Post, Topic } from "@/types/models";
+
+export function filterQuickSearchPeople(
+  people: Person[],
+  rawQuery: string,
+): Person[] {
+  const trimmed = rawQuery.trim().toLowerCase();
+  if (!trimmed) return [];
+  if (trimmed.startsWith("@")) {
+    const handle = trimmed.slice(1).trim();
+    if (!handle) return people;
+    return people.filter(
+      (p) =>
+        p.name.toLowerCase().includes(handle) ||
+        p.username.toLowerCase().includes(handle) ||
+        `@${p.username.toLowerCase()}`.includes(trimmed),
+    );
+  }
+  return people.filter(
+    (p) =>
+      p.name.toLowerCase().includes(trimmed) ||
+      p.username.toLowerCase().includes(trimmed) ||
+      p.bio.toLowerCase().includes(trimmed),
+  );
+}
+
+export function filterQuickSearchTopics(
+  topics: Topic[],
+  rawQuery: string,
+): Topic[] {
+  const trimmed = rawQuery.trim().toLowerCase();
+  if (!trimmed || trimmed.startsWith("@")) return [];
+  return topics.filter(
+    (t) =>
+      t.name.toLowerCase().includes(trimmed) ||
+      t.slug.toLowerCase().includes(trimmed),
+  );
+}
+
+export function filterQuickSearchPosts(
+  posts: Post[],
+  people: Person[],
+  rawQuery: string,
+): Post[] {
+  const trimmed = rawQuery.trim().toLowerCase();
+  if (!trimmed) return [];
+  const valid = posts.filter((p) => !p.isDeleted && !p.hidden);
+  if (trimmed.startsWith("@")) {
+    const handle = trimmed.slice(1).trim();
+    if (!handle) return [];
+    const matchingAuthorKeys = new Set(
+      people
+        .filter(
+          (p) =>
+            p.username.toLowerCase().includes(handle) ||
+            p.name.toLowerCase().includes(handle),
+        )
+        .map((p) => p.localKey),
+    );
+    return valid
+      .filter(
+        (p) =>
+          p.content.toLowerCase().includes(trimmed) ||
+          (!p.anonymous && matchingAuthorKeys.has(p.authorKey)),
+      )
+      .slice(0, 4);
+  }
+  return valid
+    .filter((p) => p.content.toLowerCase().includes(trimmed))
+    .slice(0, 4);
+}
+
 const initialTrending = [
-  { label: "BencanaNasional", href: "/topics/bencana-nasional" },
-  { label: "Infrastruktur", href: "/topics/infrastruktur" },
+  { label: "Bencana & Darurat", href: "/explore/topics/bencana-darurat" },
+  { label: "Infrastruktur", href: "/explore/topics/infrastruktur" },
   { label: "Trotoar yang aman untuk semua", href: "/posts/trotoar-merdeka" },
-  { label: "Komunitas Kota Kita", href: "/topics/komunitas" },
+  { label: "Komunitas Kota Kita", href: "/explore/topics/komunitas" },
   { label: "Ruang kecil, perubahan besar", href: "/posts/ruang-kecil" },
 ];
+
+export function SearchTriggerButton({
+  onClick,
+  className = "",
+  query = "",
+  placeholder = "Cari di KAVI",
+}: {
+  onClick?: () => void;
+  className?: string;
+  query?: string;
+  placeholder?: string;
+}) {
+  const trimmed = query.trim();
+  return (
+    <button
+      type="button"
+      className={`search-box search-box-trigger ${trimmed ? "has-query" : ""} ${className}`.trim()}
+      onClick={onClick}
+      aria-label={placeholder}
+    >
+      <div className="search-box-left">
+        <Search size={16} />
+        <span className={trimmed ? "search-box-query" : ""}>
+          {trimmed || placeholder}
+        </span>
+      </div>
+    </button>
+  );
+}
 
 const defaultHistory = [
   "#Kebersihan",
@@ -31,15 +132,23 @@ const defaultHistory = [
 export function QuickSearchModal({
   isOpen,
   onClose,
+  initialQuery = "",
 }: {
   isOpen: boolean;
   onClose: () => void;
+  initialQuery?: string;
 }) {
   const router = useRouter();
   const { people, posts } = useDemo();
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialQuery);
   const [history, setHistory] = useState<string[]>(defaultHistory);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isOpen) {
+      setQuery(initialQuery);
+    }
+  }, [isOpen, initialQuery]);
 
   useEffect(() => {
     const saved = localStorage.getItem("kavi_recent_searches");
@@ -73,34 +182,20 @@ export function QuickSearchModal({
   }
 
   // Filtered results when user types
-  const filteredPeople = useMemo(() => {
-    if (!query.trim()) return [];
-    const q = query.toLowerCase();
-    return people.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) ||
-        p.username.toLowerCase().includes(q) ||
-        p.bio.toLowerCase().includes(q)
-    );
-  }, [people, query]);
+  const filteredPeople = useMemo(
+    () => filterQuickSearchPeople(people, query),
+    [people, query],
+  );
 
-  const filteredTopics = useMemo(() => {
-    if (!query.trim()) return [];
-    const q = query.toLowerCase();
-    return defaultTopics.filter(
-      (t) =>
-        t.name.toLowerCase().includes(q) ||
-        t.slug.toLowerCase().includes(q)
-    );
-  }, [query]);
+  const filteredTopics = useMemo(
+    () => filterQuickSearchTopics(defaultTopics, query),
+    [query],
+  );
 
-  const filteredPosts = useMemo(() => {
-    if (!query.trim()) return [];
-    const q = query.toLowerCase();
-    return posts
-      .filter((p) => !p.isDeleted && p.content.toLowerCase().includes(q))
-      .slice(0, 4);
-  }, [posts, query]);
+  const filteredPosts = useMemo(
+    () => filterQuickSearchPosts(posts, people, query),
+    [posts, people, query],
+  );
 
   if (!isOpen) return null;
 
@@ -224,27 +319,29 @@ export function QuickSearchModal({
               {filteredPeople.length > 0 && (
                 <div className="quick-search-section">
                   <span className="quick-search-section-label">Warga &amp; Instansi</span>
-                  {filteredPeople.slice(0, 3).map((person) => (
-                    <button
-                      key={person.localKey}
-                      type="button"
-                      className="quick-search-result-row"
-                      onClick={() => {
-                        addHistoryItem(person.name);
-                        onClose();
-                        router.push(`/profile/${person.localKey}`);
-                      }}
-                    >
-                      <Avatar name={person.name} src={person.image} />
-                      <div className="quick-search-user-info">
-                        <strong>
-                          {person.name}
-                          <VerifiedBadge role={person.role} size={15} />
-                        </strong>
-                        <small>@{person.username}</small>
-                      </div>
-                    </button>
-                  ))}
+                  {filteredPeople
+                    .slice(0, query.trim().startsWith("@") ? 8 : 3)
+                    .map((person) => (
+                      <button
+                        key={person.localKey}
+                        type="button"
+                        className="quick-search-result-row"
+                        onClick={() => {
+                          addHistoryItem(person.name);
+                          onClose();
+                          router.push(`/profile/${person.localKey}`);
+                        }}
+                      >
+                        <Avatar name={person.name} src={person.image} />
+                        <div className="quick-search-user-info">
+                          <strong>
+                            {person.name}
+                            <VerifiedBadge role={person.role} size={15} />
+                          </strong>
+                          <small>@{person.username}</small>
+                        </div>
+                      </button>
+                    ))}
                 </div>
               )}
 
@@ -259,7 +356,7 @@ export function QuickSearchModal({
                       onClick={() => {
                         addHistoryItem(topic.name);
                         onClose();
-                        router.push(`/topics/${topic.slug}`);
+                        router.push(`/explore/topics/${topic.slug}`);
                       }}
                     >
                       <TagIcon size={16} className="muted" />
@@ -291,18 +388,27 @@ export function QuickSearchModal({
                 </div>
               )}
 
-              {/* Direct query submit option */}
-              <button
-                type="button"
-                className="quick-search-submit-row"
-                onClick={() => handleSearchSubmit(query)}
-              >
-                <span>Cari &ldquo;{query}&rdquo; di Jelajah</span>
-                <ArrowRight size={15} />
-              </button>
+              {filteredPeople.length === 0 &&
+                filteredTopics.length === 0 &&
+                filteredPosts.length === 0 && (
+                  <p className="small muted profile-search-empty-note">
+                    Tidak ada hasil untuk &ldquo;{query.trim()}&rdquo;.
+                  </p>
+                )}
             </div>
           )}
         </div>
+
+        {query.trim() && (
+          <button
+            type="button"
+            className="quick-search-submit-row"
+            onClick={() => handleSearchSubmit(query)}
+          >
+            <span>Cari &ldquo;{query.trim()}&rdquo; di Jelajah</span>
+            <ArrowRight size={15} />
+          </button>
+        )}
       </div>
     </Dialog>
   );

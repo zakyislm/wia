@@ -20,14 +20,19 @@ import { Button } from "@/components/ui/Button";
 import { VerifiedBadge, renderWithMentions } from "./PostCard";
 import { useDemo } from "@/features/auth/DemoProvider";
 import { getEffectiveReportStatus } from "@/features/discovery/filters";
-import { mediaError } from "@/lib/validation";
+import {
+  extractClipboardMediaFiles,
+  mediaError,
+} from "@/lib/validation";
 import { LocationSelectorModal } from "@/components/selectors/LocationSelectorModal";
+import {
+  MediaAttachmentPreview,
+  MediaGallery,
+  createMediaPreviewUrl,
+} from "@/components/ui/MediaGallery";
 import { EmojiSelectorModal } from "@/components/selectors/EmojiSelectorModal";
+import { InlineTokenSuggest } from "@/components/selectors/InlineTokenSuggest";
 import type { Post, Reply } from "@/types/models";
-
-function isVideoMedia(src: string): boolean {
-  return src.endsWith("#video") || /\.(mp4|webm)(\?|$)/i.test(src);
-}
 
 function formatElapsedSince(startTime?: number, now = Date.now()): string {
   if (!startTime) return "0m";
@@ -65,6 +70,7 @@ export function CommentThread({
   const [error, setError] = useState("");
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [showEmojiModal, setShowEmojiModal] = useState(false);
+  const [isAnonymous, setIsAnonymous] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const [highlightedKey, setHighlightedKey] = useState<string | null>(null);
 
@@ -170,6 +176,7 @@ export function CommentThread({
     setImages([]);
     setLocation("");
     setError("");
+    setIsAnonymous(false);
     setReplyTo(undefined);
     setActionModeRole(null);
     setIsExpanded(false);
@@ -221,6 +228,7 @@ export function CommentThread({
           postedAt: Date.now(),
           images: images.length ? images : undefined,
           location: location || undefined,
+          anonymous: !isTakingAction && isAnonymous ? true : undefined,
           is_action_taken: isTakingAction ? true : undefined,
           actionRole: isTakingAction ? actionModeRole : undefined,
           actionTakenAt: isTakingAction ? Date.now() : undefined,
@@ -234,6 +242,7 @@ export function CommentThread({
     setImages([]);
     setLocation("");
     setError("");
+    setIsAnonymous(false);
     setReplyTo(undefined);
     setActionModeRole(null);
     setIsExpanded(false);
@@ -293,6 +302,25 @@ export function CommentThread({
     (closedRole === "INTERNAL" ? "zaky_internal" : "pupr");
   const closerPerson =
     people.find((p) => p.localKey === closerKey) ?? people[0];
+
+  function appendMediaFiles(files: File[]) {
+    if (files.length === 0) return;
+    const message = mediaError(files, images.length);
+    if (message) {
+      setError(message);
+      return;
+    }
+    const added = files.map(createMediaPreviewUrl);
+    setImages((current) => [...current, ...added]);
+    setError("");
+  }
+
+  function handlePasteMedia(event: React.ClipboardEvent<HTMLTextAreaElement>) {
+    const files = extractClipboardMediaFiles(event.clipboardData);
+    if (files.length === 0) return;
+    event.preventDefault();
+    appendMediaFiles(files);
+  }
 
   const isSubmitDisabled = actionModeRole
     ? images.length === 0
@@ -452,6 +480,7 @@ export function CommentThread({
                 rows={3}
                 className="comment-composer-textarea"
                 value={text}
+                onPaste={handlePasteMedia}
                 onChange={(event) => {
                   setText(event.target.value);
                   setError("");
@@ -461,6 +490,21 @@ export function CommentThread({
                     ? "Tulis keterangan tindak lanjut & lampirkan bukti foto/video..."
                     : "Tulis balasan..."
                 }
+              />
+
+              <InlineTokenSuggest
+                value={text}
+                textareaRef={textareaRef}
+                onInsert={(nextValue, nextCursor) => {
+                  setText(nextValue);
+                  setTimeout(() => {
+                    const el = textareaRef.current;
+                    if (el) {
+                      el.focus();
+                      el.setSelectionRange(nextCursor, nextCursor);
+                    }
+                  }, 10);
+                }}
               />
 
               {location && (
@@ -479,31 +523,16 @@ export function CommentThread({
                 </div>
               )}
 
-              {images.length > 0 && (
-                <div className="composer-photo-grid">
-                  {images.map((src, index) => (
-                    <figure key={src} className="composer-photo-thumb">
-                      {isVideoMedia(src) ? (
-                        <video src={src} controls muted playsInline />
-                      ) : (
-                        <img src={src} alt={`Lampiran balasan ${index + 1}`} />
-                      )}
-                      <button
-                        type="button"
-                        aria-label={`Hapus media ${index + 1}`}
-                        onClick={() => {
-                          URL.revokeObjectURL(src.replace(/#video$/, ""));
-                          setImages((current) =>
-                            current.filter((img) => img !== src),
-                          );
-                        }}
-                      >
-                        <X size={14} />
-                      </button>
-                    </figure>
-                  ))}
-                </div>
-              )}
+              <MediaAttachmentPreview
+                media={images}
+                altPrefix="Lampiran balasan"
+                onRemove={(src) => {
+                  URL.revokeObjectURL(src.replace(/#video$/, ""));
+                  setImages((current) =>
+                    current.filter((img) => img !== src),
+                  );
+                }}
+              />
 
               {error && (
                 <p className="composer-error" role="alert">
@@ -528,20 +557,7 @@ export function CommentThread({
                     multiple
                     style={{ display: "none" }}
                     onChange={(event) => {
-                      const files = Array.from(event.target.files ?? []);
-                      const message = mediaError(files, images.length);
-                      if (message) setError(message);
-                      else {
-                        const added = files.map((file) => {
-                          const url = URL.createObjectURL(file);
-                          return file.type.startsWith("video/") ||
-                            /\.(mp4|webm)$/i.test(file.name)
-                            ? `${url}#video`
-                            : url;
-                        });
-                        setImages((current) => [...current, ...added]);
-                        setError("");
-                      }
+                      appendMediaFiles(Array.from(event.target.files ?? []));
                       event.target.value = "";
                     }}
                   />
@@ -563,19 +579,67 @@ export function CommentThread({
                   >
                     <Smile size={20} strokeWidth={1.8} />
                   </button>
+
+                  {!actionModeRole && (
+                    <div className="composer-anon-control">
+                      <span
+                        className={`composer-anon-icon ${isAnonymous ? "is-active" : ""}`}
+                        aria-hidden="true"
+                      >
+                        <svg
+                          width="19"
+                          height="19"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.9"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M14 18a2 2 0 0 0-4 0" />
+                          <path d="m19 11-2.11-6.657a2 2 0 0 0-2.752-1.148l-1.276.61A2 2 0 0 1 12 4H8.5a2 2 0 0 0-1.925 1.456L5 11" />
+                          <path d="M2 11h20" />
+                          <circle cx="17" cy="18" r="3" />
+                          <circle cx="7" cy="18" r="3" />
+                        </svg>
+                      </span>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={isAnonymous}
+                        aria-label="Komentar secara anonim"
+                        className={`composer-anon-switch ${isAnonymous ? "is-on" : ""}`}
+                        onClick={() => setIsAnonymous((prev) => !prev)}
+                      >
+                        <span className="composer-anon-switch-thumb" />
+                      </button>
+                      <div className="composer-anon-help-wrap">
+                        <button
+                          type="button"
+                          className="composer-anon-help"
+                          aria-label="Info komentar secara anonim"
+                        >
+                          ?
+                        </button>
+                        <div className="composer-anon-tooltip" role="tooltip">
+                          Posting secara anonim
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
-                <div className="comment-composer-actions">
+                <div className="composer-footer-actions">
                   <button
                     type="button"
-                    className="comment-cancel-btn"
+                    className="composer-cancel-btn"
                     onClick={handleCancel}
                   >
                     Batal
                   </button>
                   <button
                     type="submit"
-                    className="comment-post-btn"
+                    className="composer-post-btn"
                     disabled={isSubmitDisabled}
                     title={
                       actionModeRole && images.length === 0
@@ -619,11 +683,13 @@ export function CommentThread({
           (child) => child.parentKey === reply.localKey,
         );
         const children = childrenReplies.length > 0;
-        const badgeRole =
-          reply.actionRole ??
-          (author.role === "GOVERNMENT" || author.role === "INTERNAL"
-            ? author.role
-            : undefined);
+        const isReplyAnon = Boolean(reply.anonymous) && !reply.is_action_taken;
+        const badgeRole = isReplyAnon
+          ? undefined
+          : (reply.actionRole ??
+            (author.role === "GOVERNMENT" || author.role === "INTERNAL"
+              ? author.role
+              : undefined));
 
         const upCount =
           (reply.upvotesCount ?? 0) + (reply.vote === "UP" ? 1 : 0);
@@ -638,34 +704,46 @@ export function CommentThread({
           >
             <div className="comment-body">
               <div className="comment-avatar-col">
-                <UserHoverCard person={author}>
-                  <Link
-                    href={`/profile/${author.username || author.localKey}`}
-                    className="post-avatar-link"
-                  >
-                    <Avatar name={author.name} src={author.image} />
-                  </Link>
-                </UserHoverCard>
-              </div>
-              <div className="comment-author-line">
-                <strong className="comment-author-name">
+                {isReplyAnon ? (
+                  <Avatar name="Anonim" />
+                ) : (
                   <UserHoverCard person={author}>
                     <Link
                       href={`/profile/${author.username || author.localKey}`}
+                      className="post-avatar-link"
                     >
-                      {author.name}
+                      <Avatar name={author.name} src={author.image} />
                     </Link>
                   </UserHoverCard>
-                  <VerifiedBadge role={badgeRole} size={15} />
+                )}
+              </div>
+              <div className="comment-author-line">
+                <strong className="comment-author-name">
+                  {isReplyAnon ? (
+                    "Anonim"
+                  ) : (
+                    <>
+                      <UserHoverCard person={author}>
+                        <Link
+                          href={`/profile/${author.username || author.localKey}`}
+                        >
+                          {author.name}
+                        </Link>
+                      </UserHoverCard>
+                      <VerifiedBadge role={badgeRole} size={15} />
+                    </>
+                  )}
                 </strong>
-                <UserHoverCard person={author}>
-                  <Link
-                    href={`/profile/${author.username || author.localKey}`}
-                    className="comment-author-handle"
-                  >
-                    @{author.username}
-                  </Link>
-                </UserHoverCard>
+                {!isReplyAnon && (
+                  <UserHoverCard person={author}>
+                    <Link
+                      href={`/profile/${author.username || author.localKey}`}
+                      className="comment-author-handle"
+                    >
+                      @{author.username}
+                    </Link>
+                  </UserHoverCard>
+                )}
                 {reply.is_action_taken && (
                   <span className="comment-action-marker">Tindak Lanjut</span>
                 )}
@@ -681,21 +759,11 @@ export function CommentThread({
                 </p>
               )}
               {reply.images && reply.images.length > 0 && (
-                <div className="photo-grid comment-photo-grid">
-                  {reply.images.map((src, i) =>
-                    isVideoMedia(src) ? (
-                      <video
-                        src={src}
-                        controls
-                        playsInline
-                        key={src}
-                        className="comment-video-media"
-                      />
-                    ) : (
-                      <img src={src} alt={`Foto komentar ${i + 1}`} key={src} />
-                    ),
-                  )}
-                </div>
+                <MediaGallery
+                  media={reply.images}
+                  altPrefix="Foto komentar"
+                  className="comment-photo-grid"
+                />
               )}
               <footer className="post-actions comment-post-actions">
                 <Button

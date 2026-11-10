@@ -16,6 +16,7 @@ import {
   BadgeCheck,
 } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
+import { MediaGallery } from "@/components/ui/MediaGallery";
 import { UserHoverCard } from "@/components/user/UserHoverCard";
 import { Button } from "@/components/ui/Button";
 import { getEffectiveReportStatus } from "@/features/discovery/filters";
@@ -59,7 +60,7 @@ export function renderWithMentions(
   content: string,
   people: Person[],
 ): ReactNode {
-  const parts = content.split(/(@[a-zA-Z0-9_]+)/g);
+  const parts = content.split(/([#@][a-zA-Z0-9_]+)/g);
   return parts.map((part, index) => {
     if (part.startsWith("@") && part.length > 1) {
       const clean = part.slice(1).toLowerCase();
@@ -81,6 +82,18 @@ export function renderWithMentions(
           </UserHoverCard>
         );
       }
+    }
+    if (part.startsWith("#") && part.length > 1) {
+      return (
+        <Link
+          key={`${part}-${index}`}
+          href={`/explore?q=${encodeURIComponent(part)}`}
+          className="post-tag-item"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {part}
+        </Link>
+      );
     }
     return part;
   });
@@ -121,16 +134,28 @@ export function PostCard({
   const reportStatus = isReport ? getEffectiveReportStatus(post) : null;
 
   const [heading, ...paragraphs] = post.content.split("\n\n");
+  const reportBodyLines = paragraphs
+    .join("\n\n")
+    .split(/\r?\n+/)
+    .filter((line) => line.trim().length > 0);
+  const generalBodyLines = post.content
+    .split(/\r?\n+/)
+    .filter((line) => line.trim().length > 0);
+
   const text =
     isReport && paragraphs.length ? (
       <>
         <h3>{renderWithMentions(heading, people)}</h3>
-        <p>{renderWithMentions(paragraphs.join("\n\n"), people)}</p>
+        <div className="post-body-text">
+          {reportBodyLines.map((line, i) => (
+            <p key={i}>{renderWithMentions(line, people)}</p>
+          ))}
+        </div>
       </>
     ) : (
-      <div className="post-general-text">
-        {post.content.split("\n\n").map((para, i) => (
-          <p key={i}>{renderWithMentions(para, people)}</p>
+      <div className="post-body-text">
+        {generalBodyLines.map((line, i) => (
+          <p key={i}>{renderWithMentions(line, people)}</p>
         ))}
       </div>
     );
@@ -141,9 +166,24 @@ export function PostCard({
       vote: current.vote === direction ? null : direction,
     }));
   }
+  function handleCardClick(e: React.MouseEvent<HTMLElement>) {
+    if (detail || e.defaultPrevented) return;
+    const target = e.target as HTMLElement;
+    if (
+      target.closest(
+        "a, button, summary, details, dialog, input, textarea, select, [role='button'], [role='menu'], .user-hover-trigger-wrap, .user-hover-card, .post-menu",
+      )
+    ) {
+      return;
+    }
+    const selected = window.getSelection()?.toString();
+    if (selected && selected.trim().length > 0) return;
+    router.push(href);
+  }
   return (
     <article
-      className={`post-card ${isReport ? "post-card--report" : "post-card--general"}`}
+      className={`post-card ${isReport ? "post-card--report" : "post-card--general"} ${!detail ? "post-card--clickable" : ""}`.trim()}
+      onClick={!detail ? handleCardClick : undefined}
     >
       <div className="post-avatar-col">
         {post.anonymous ? (
@@ -189,7 +229,7 @@ export function PostCard({
                 <span className="post-meta-separator">in</span>
                 <span className="post-topic-name">
                   <Link
-                    href={`/topics/${post.topicSlug || (post.category || "umum").toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
+                    href={`/explore/topics/${post.topicSlug || (post.category || "umum").toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
                   >
                     {post.topicName || post.category || "Umum"}
                   </Link>
@@ -235,38 +275,33 @@ export function PostCard({
         )}
         <PostMenu post={post} />
       </header>
-      {detail ? (
-        <div className="post-content">{text}</div>
-      ) : (
-        <div
-          className="post-content post-link"
-          style={{ cursor: "pointer" }}
-          onClick={(e) => {
-            if (
-              !(e.target as HTMLElement).closest(
-                "a, button, .user-hover-trigger-wrap",
-              )
-            ) {
-              router.push(href);
-            }
-          }}
-        >
-          {text}
-        </div>
-      )}
-      {post.tags && post.tags.length > 0 && (
-        <div className="post-tags">
-          {post.tags.map((tag) => (
-            <Link
-              key={tag}
-              href={`/explore?q=${encodeURIComponent("#" + tag)}`}
-              className="post-tag-item"
-            >
-              #{tag}
-            </Link>
-          ))}
-        </div>
-      )}
+      <div className={detail ? "post-content" : "post-content post-link"}>
+        {text}
+      </div>
+      {(() => {
+        const inlineTagsLower = new Set(
+          Array.from(post.content.matchAll(/#([a-zA-Z0-9_]+)/g), (m) =>
+            m[1].toLowerCase(),
+          ),
+        );
+        const remainingTags = (post.tags ?? []).filter(
+          (t) => !inlineTagsLower.has(t.replace(/^#/, "").toLowerCase()),
+        );
+        if (remainingTags.length === 0) return null;
+        return (
+          <div className="post-tags">
+            {remainingTags.map((tag) => (
+              <Link
+                key={tag}
+                href={`/explore?q=${encodeURIComponent("#" + tag)}`}
+                className="post-tag-item"
+              >
+                #{tag}
+              </Link>
+            ))}
+          </div>
+        );
+      })()}
       {post.kind === "report" && post.agencyKeys.length > 0 && (
         <div className="agency-tags">
           {post.agencyKeys.map((key) => {
@@ -285,13 +320,7 @@ export function PostCard({
           })}
         </div>
       )}
-      {!!post.images.length && (
-        <div className="photo-grid">
-          {post.images.map((src, index) => (
-            <img src={src} alt={`Foto postingan ${index + 1}`} key={src} />
-          ))}
-        </div>
-      )}
+      <MediaGallery media={post.images} altPrefix="Foto postingan" />
       <footer className="post-actions">
         <Button
           variant="ghost"

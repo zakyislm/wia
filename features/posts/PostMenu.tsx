@@ -329,7 +329,7 @@ export function PostMenu({ post }: { post: Post }) {
           {dialog === "remove" ? (
             <div className="dialog-body">
               <p>
-                Postingan tidak lagi tampil di feed atau Timeline. Tindakan ini
+                Postingan tidak lagi tampil di feed atau Laporan. Tindakan ini
                 bukan penyelesaian laporan.
               </p>
               <div className="button-row">

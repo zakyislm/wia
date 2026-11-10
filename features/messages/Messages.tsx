@@ -1,44 +1,116 @@
+/* eslint-disable @next/next/no-img-element -- Session-only blob URLs cannot use server image optimization. */
 "use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useRef, useEffect } from "react";
-import { Plus, ArrowLeft, Send } from "lucide-react";
+import { useState, useRef, useEffect, useMemo } from "react";
+import {
+  Search,
+  SquarePen,
+  ArrowLeft,
+  Send,
+  Image as ImageIcon,
+  Smile,
+  MoreHorizontal,
+  X,
+} from "lucide-react";
 import { useDemo } from "@/features/auth/DemoProvider";
 import { ProductShell } from "@/components/layout/ProductShell";
-import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
 import { Dialog } from "@/components/ui/Dialog";
-import { ThemeToggle } from "@/components/ui/ThemeToggle";
+import {
+  MediaGallery,
+  isVideoMedia,
+} from "@/components/ui/MediaGallery";
+import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
+import { EmojiSelectorModal } from "@/components/selectors/EmojiSelectorModal";
+import { mediaError } from "@/lib/validation";
+
+type ChatSubtab = "all" | "unread" | "sent";
+
 export function Messages({ selectedKey }: { selectedKey?: string }) {
-  const { user, people, workspace, setWorkspace } = useDemo();
+  const { user, people, workspace, setWorkspace, following, setFollowing } =
+    useDemo();
   const router = useRouter();
   const [query, setQuery] = useState("");
+  const [subtab, setSubtab] = useState<ChatSubtab>("all");
   const [newMessage, setNew] = useState(false);
   const [recipientQuery, setRecipientQuery] = useState("");
   const [text, setText] = useState("");
+  const [images, setImages] = useState<string[]>([]);
+  const [error, setError] = useState("");
+  const [showEmojiModal, setShowEmojiModal] = useState(false);
+
   const bottom = useRef<HTMLDivElement>(null);
-  const conversations = workspace.conversations.filter(
-    (item) => item.partnerKey !== user?.localKey,
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const conversations = useMemo(
+    () =>
+      workspace.conversations.filter(
+        (item) => item.partnerKey !== user?.localKey,
+      ),
+    [workspace.conversations, user?.localKey],
   );
+
   const selected = conversations.find((item) => item.localKey === selectedKey);
   const partner = people.find(
     (person) => person.localKey === selected?.partnerKey,
   );
+
+  // Mark selected conversation as read when opened
+  useEffect(() => {
+    if (!selectedKey) return;
+    const target = workspace.conversations.find(
+      (c) => c.localKey === selectedKey,
+    );
+    if (target?.unread) {
+      setWorkspace((current) => ({
+        ...current,
+        conversations: current.conversations.map((item) =>
+          item.localKey === selectedKey ? { ...item, unread: false } : item,
+        ),
+      }));
+    }
+  }, [selectedKey, workspace.conversations, setWorkspace]);
+
   useEffect(() => {
     bottom.current?.scrollIntoView({ block: "nearest" });
   }, [selected?.messages.length]);
-  const filtered = conversations.filter((item) => {
-    const person = people.find((p) => p.localKey === item.partnerKey);
-    return `${person?.name} ${item.messages.at(-1)?.text ?? ""}`
-      .toLowerCase()
-      .includes(query.toLowerCase());
-  });
+
+  const counts = useMemo(() => {
+    const all = conversations.length;
+    const unread = conversations.filter((c) => Boolean(c.unread)).length;
+    const sent = conversations.filter((c) =>
+      c.messages.some((m) => m.outgoing),
+    ).length;
+    return { all, unread, sent };
+  }, [conversations]);
+
+  const filtered = useMemo(() => {
+    return conversations.filter((item) => {
+      if (subtab === "unread" && !item.unread) return false;
+      if (subtab === "sent" && !item.messages.some((m) => m.outgoing)) {
+        return false;
+      }
+      const person = people.find((p) => p.localKey === item.partnerKey);
+      return `${person?.name ?? ""} ${person?.username ?? ""} ${item.messages.at(-1)?.text ?? ""}`
+        .toLowerCase()
+        .includes(query.toLowerCase());
+    });
+  }, [conversations, subtab, people, query]);
+
   function open(partnerKey: string) {
     if (!workspace.conversations.some((item) => item.partnerKey === partnerKey))
       setWorkspace((current) => ({
         ...current,
         conversations: [
-          { id: "", localKey: partnerKey, partnerKey, messages: [] },
+          {
+            id: "",
+            localKey: partnerKey,
+            partnerKey,
+            unread: false,
+            messages: [],
+          },
           ...current.conversations,
         ],
       }));
@@ -46,167 +118,448 @@ export function Messages({ selectedKey }: { selectedKey?: string }) {
     setRecipientQuery("");
     router.push(`/messages/${partnerKey}`);
   }
+
+  function handleInsertEmoji(emoji: string) {
+    const el = textareaRef.current;
+    if (el) {
+      const start = el.selectionStart ?? text.length;
+      const end = el.selectionEnd ?? text.length;
+      const next = text.slice(0, start) + emoji + text.slice(end);
+      setText(next);
+      setTimeout(() => {
+        el.focus();
+        el.setSelectionRange(start + emoji.length, start + emoji.length);
+      }, 10);
+    } else {
+      setText((prev) => prev + emoji);
+    }
+  }
+
+  function sendMessage() {
+    if (!selected) return;
+    const content = text.trim();
+    if (!content && images.length === 0) return;
+
+    const sentImages = images.length > 0 ? [...images] : undefined;
+    setWorkspace((current) => ({
+      ...current,
+      conversations: current.conversations.map((item) =>
+        item.localKey === selected.localKey
+          ? {
+              ...item,
+              unread: false,
+              messages: [
+                ...item.messages,
+                {
+                  id: "",
+                  authorId: "",
+                  localKey: crypto.randomUUID(),
+                  outgoing: true,
+                  text: content,
+                  images: sentImages,
+                  time: new Date().toLocaleTimeString("id-ID", {
+                    timeZone: "Asia/Jakarta",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  }),
+                },
+              ],
+            }
+          : item,
+      ),
+    }));
+    setText("");
+    setImages([]);
+    setError("");
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+    }
+  }
+
+  const isFollowingPartner = partner
+    ? following.includes(partner.localKey)
+    : false;
+
   return (
     <ProductShell title="Obrolan" active="messages" wide>
       <div className={`messaging ${selectedKey ? "has-conversation" : ""}`}>
+        {/* Left Pane: Conversation List */}
         <section className="conversation-list" aria-label="Daftar percakapan">
-          <header className="chat-list-header">
-            <h1>Obrolan</h1>
-            <div>
-              <ThemeToggle />
-              <Button
-                variant="ghost"
-                aria-label="Pesan baru"
-                onClick={() => setNew(true)}
+          <h1 className="sr-only">Obrolan</h1>
+
+          {/* Top Row: Search Box + Compose Button */}
+          <div className="chat-list-top">
+            <label className="chat-search-box">
+              <Search size={16} className="chat-search-icon" />
+              <span className="sr-only">Cari percakapan</span>
+              <input
+                type="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Cari obrolan"
+              />
+            </label>
+            <button
+              type="button"
+              className="chat-compose-btn"
+              aria-label="Pesan baru"
+              title="Pesan baru"
+              onClick={() => setNew(true)}
+            >
+              <SquarePen size={18} strokeWidth={1.8} />
+            </button>
+          </div>
+
+          {/* Subtabs matching Notification Page */}
+          <div className="chat-subtabs-wrap">
+            <div
+              className="notif-segmented-control chat-segmented-control"
+              role="tablist"
+              aria-label="Filter percakapan"
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={subtab === "all"}
+                className={`notif-segment-btn ${subtab === "all" ? "active" : ""}`}
+                onClick={() => setSubtab("all")}
               >
-                <Plus />
-              </Button>
-            </div>
-          </header>
-          <label className="chat-search">
-            <span className="sr-only">Cari percakapan</span>
-            <input
-              type="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Cari percakapan"
-            />
-          </label>
-          <p className="small muted section-pad">Pesan pribadi</p>
-          {filtered.map((item) => {
-            const person = people.find((p) => p.localKey === item.partnerKey)!;
-            return (
-              <Link
-                className={`conversation-item ${selectedKey === item.localKey ? "selected" : ""}`}
-                href={`/messages/${item.localKey}`}
-                key={item.localKey}
+                <span>Semua</span>
+                {counts.all > 0 && (
+                  <span className="notif-count-badge">{counts.all}</span>
+                )}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={subtab === "unread"}
+                className={`notif-segment-btn ${subtab === "unread" ? "active" : ""}`}
+                onClick={() => setSubtab("unread")}
               >
-                <Avatar name={person.name} src={person.image} />
-                <div>
-                  <strong>{person.name}</strong>
-                  <p>{item.messages.at(-1)?.text ?? "Mulai percakapan"}</p>
-                  <small>{item.messages.at(-1)?.time ?? ""}</small>
-                </div>
-              </Link>
-            );
-          })}
-          {!filtered.length && (
-            <div className="empty-state">
-              <p>
-                {query
-                  ? "Tidak ada percakapan yang cocok."
-                  : "Belum ada percakapan."}
-              </p>
-              <Button onClick={() => setNew(true)}>Mulai pesan</Button>
+                <span>Belum Dibaca</span>
+                {counts.unread > 0 && (
+                  <span className="notif-count-badge">{counts.unread}</span>
+                )}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={subtab === "sent"}
+                className={`notif-segment-btn ${subtab === "sent" ? "active" : ""}`}
+                onClick={() => setSubtab("sent")}
+              >
+                <span>Terkirim</span>
+                {counts.sent > 0 && (
+                  <span className="notif-count-badge">{counts.sent}</span>
+                )}
+              </button>
             </div>
-          )}
+          </div>
+
+          {/* Conversation Rows */}
+          <div className="conversation-items-scroll">
+            {filtered.map((item) => {
+              const person =
+                people.find((p) => p.localKey === item.partnerKey) ?? people[0];
+              const lastMsg = item.messages.at(-1);
+              const firstName = person.name.split(" ")[0];
+              const previewText = lastMsg
+                ? `${lastMsg.outgoing ? "Anda: " : `${firstName}: `}${lastMsg.text || (lastMsg.images?.length ? "Lampiran media" : "")}`
+                : "Percakapan baru";
+
+              return (
+                <Link
+                  className={`conversation-item ${selectedKey === item.localKey ? "selected" : ""} ${item.unread ? "is-unread" : ""}`}
+                  href={`/messages/${item.localKey}`}
+                  key={item.localKey}
+                >
+                  <span
+                    className={`chat-unread-dot ${item.unread ? "visible" : ""}`}
+                    aria-hidden="true"
+                  />
+                  <Avatar name={person.name} src={person.image} />
+                  <div className="conversation-item-body">
+                    <div className="conversation-item-top">
+                      <strong className="conversation-item-name">
+                        <span>{person.name}</span>
+                        <VerifiedBadge role={person.role} size={14} />
+                      </strong>
+                      {lastMsg?.time && (
+                        <small className="conversation-item-time">
+                          {lastMsg.time}
+                        </small>
+                      )}
+                    </div>
+                    <p className="conversation-item-preview">{previewText}</p>
+                  </div>
+                </Link>
+              );
+            })}
+
+            {!filtered.length && (
+              <div className="empty-state chat-list-empty">
+                <p>
+                  {query
+                    ? "Tidak ada percakapan yang cocok."
+                    : subtab === "unread"
+                      ? "Tidak ada pesan yang belum dibaca."
+                      : subtab === "sent"
+                        ? "Belum ada pesan terkirim."
+                        : "Belum ada percakapan."}
+                </p>
+              </div>
+            )}
+          </div>
         </section>
+
+        {/* Right Pane: Conversation View */}
         <section className="conversation-pane" aria-label="Isi percakapan">
           {selected && partner ? (
             <>
               <header className="conversation-header">
+                <div className="conversation-header-left">
+                  <Link
+                    className="chat-back button button--ghost"
+                    href="/messages"
+                    aria-label="Kembali ke daftar percakapan"
+                  >
+                    <ArrowLeft size={20} />
+                  </Link>
+                  <Avatar name={partner.name} src={partner.image} />
+                  <Link
+                    href={`/profile/${partner.localKey}`}
+                    className="conversation-header-partner"
+                  >
+                    <strong>{partner.name}</strong>
+                    <VerifiedBadge role={partner.role} size={15} />
+                  </Link>
+                </div>
                 <Link
-                  className="chat-back button button--ghost"
-                  href="/messages"
-                  aria-label="Kembali ke daftar percakapan"
+                  href={`/profile/${partner.localKey}`}
+                  className="conversation-header-more"
+                  aria-label="Opsi percakapan"
+                  title="Lihat profil"
                 >
-                  <ArrowLeft />
-                </Link>
-                <Avatar name={partner.name} src={partner.image} />
-                <Link href={`/profile/${partner.localKey}`}>
-                  <strong>{partner.name}</strong>
+                  <MoreHorizontal size={20} />
                 </Link>
               </header>
+
               <div className="message-history">
-                <p className="chat-demo-label">
-                  Pratinjau lokal · Pesan tidak dikirim ke pengguna lain
-                </p>
-                {selected.messages.map((message) => (
-                  <div
-                    key={message.localKey}
-                    className={`message-bubble ${message.outgoing ? "outgoing" : ""}`}
-                  >
-                    <p>{message.text}</p>
-                    <small>
-                      {message.time}
-                      {message.outgoing ? " · Demo" : ""}
-                    </small>
+                {/* Profile Intro Card (Substack / X Reference) */}
+                <div className="chat-profile-intro">
+                  <div className="chat-profile-intro-avatar">
+                    <Avatar name={partner.name} src={partner.image} />
                   </div>
-                ))}
-                {!selected.messages.length && (
-                  <p className="muted">Sampaikan sapaan pertamamu.</p>
-                )}
-                <div ref={bottom} />
+                  <div className="chat-profile-intro-name">
+                    <strong>{partner.name}</strong>
+                    <VerifiedBadge role={partner.role} size={16} />
+                  </div>
+                  <span className="chat-profile-intro-handle">
+                    @{partner.username}
+                  </span>
+                  <div className="chat-profile-intro-actions">
+                    {!isFollowingPartner && (
+                      <button
+                        type="button"
+                        className="chat-intro-btn chat-intro-btn--follow"
+                        onClick={() =>
+                          setFollowing((current) =>
+                            current.includes(partner.localKey)
+                              ? current
+                              : [...current, partner.localKey],
+                          )
+                        }
+                      >
+                        Ikuti
+                      </button>
+                    )}
+                    <Link
+                      href={`/profile/${partner.localKey}`}
+                      className="chat-intro-btn chat-intro-btn--profile"
+                    >
+                      Profil
+                    </Link>
+                  </div>
+                </div>
+
+                <div className="chat-profile-intro-divider" />
+
+                {/* Messages */}
+                <div className="chat-messages-stack">
+                  {selected.messages.map((message) => (
+                    <div
+                      key={message.localKey}
+                      className={`message-bubble ${message.outgoing ? "outgoing" : "incoming"}`}
+                    >
+                      {message.images && message.images.length > 0 && (
+                        <MediaGallery
+                          media={message.images}
+                          altPrefix="Lampiran pesan"
+                          className="chat-bubble-media"
+                        />
+                      )}
+                      {message.text && <p>{message.text}</p>}
+                      <small>{message.time}</small>
+                    </div>
+                  ))}
+                  <div ref={bottom} />
+                </div>
               </div>
+
+              {/* Chat Composer: Left User Avatar + Right Unified Input Box */}
               <form
-                className="message-editor"
+                className="chat-composer-row message-editor"
                 onSubmit={(e) => {
                   e.preventDefault();
-                  if (!text.trim()) return;
-                  const content = text.trim();
-                  setWorkspace((current) => ({
-                    ...current,
-                    conversations: current.conversations.map((item) =>
-                      item.localKey === selected.localKey
-                        ? {
-                            ...item,
-                            messages: [
-                              ...item.messages,
-                              {
-                                id: "",
-                                authorId: "",
-                                localKey: crypto.randomUUID(),
-                                outgoing: true,
-                                text: content,
-                                time: new Date().toLocaleTimeString("id-ID", {
-                                  timeZone: "Asia/Jakarta",
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                }),
-                              },
-                            ],
-                          }
-                        : item,
-                    ),
-                  }));
-                  setText("");
+                  sendMessage();
                 }}
               >
-                <label>
-                  <span className="sr-only">Tulis pesan</span>
-                  <textarea
-                    rows={1}
-                    maxLength={4000}
-                    value={text}
-                    onChange={(e) => setText(e.target.value)}
-                    placeholder="Tulis pesan…"
-                  />
-                </label>
-                <Button
-                  type="submit"
-                  aria-label="Kirim pesan"
-                  disabled={!text.trim()}
-                >
-                  <Send />
-                </Button>
+                {user && (
+                  <div className="chat-composer-user-avatar">
+                    <Avatar name={user.name} src={user.image} />
+                  </div>
+                )}
+
+                <div className="chat-composer-unified">
+                  {images.length > 0 && (
+                    <div className="composer-photo-grid chat-composer-photo-grid">
+                      {images.map((src, index) => (
+                        <figure key={src} className="composer-photo-thumb">
+                          {isVideoMedia(src) ? (
+                            <video src={src} controls muted playsInline />
+                          ) : (
+                            <img
+                              src={src}
+                              alt={`Lampiran pesan ${index + 1}`}
+                            />
+                          )}
+                          <button
+                            type="button"
+                            aria-label={`Hapus media ${index + 1}`}
+                            onClick={() => {
+                              URL.revokeObjectURL(src.replace(/#video$/, ""));
+                              setImages((current) =>
+                                current.filter((img) => img !== src),
+                              );
+                            }}
+                          >
+                            <X size={14} />
+                          </button>
+                        </figure>
+                      ))}
+                    </div>
+                  )}
+
+                  {error && (
+                    <p className="composer-error" role="alert">
+                      {error}
+                    </p>
+                  )}
+
+                  <div className="chat-composer-bar">
+                    <button
+                      type="button"
+                      className="composer-tool-btn"
+                      title="Tambah foto atau video"
+                      aria-label="Tambah foto atau video"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <ImageIcon size={20} strokeWidth={1.8} />
+                    </button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".png,.jpg,.jpeg,.webp,.gif,.mp4,.webm,image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm"
+                      multiple
+                      style={{ display: "none" }}
+                      onChange={(event) => {
+                        const files = Array.from(event.target.files ?? []);
+                        const message = mediaError(files, images.length);
+                        if (message) setError(message);
+                        else {
+                          const added = files.map((file) => {
+                            const url = URL.createObjectURL(file);
+                            return file.type.startsWith("video/") ||
+                              /\.(mp4|webm)$/i.test(file.name)
+                              ? `${url}#video`
+                              : url;
+                          });
+                          setImages((current) => [...current, ...added]);
+                          setError("");
+                        }
+                        event.target.value = "";
+                      }}
+                    />
+
+                    <button
+                      type="button"
+                      className="composer-tool-btn"
+                      title="Tambah emoji"
+                      aria-label="Tambah emoji"
+                      onClick={() => setShowEmojiModal(true)}
+                    >
+                      <Smile size={20} strokeWidth={1.8} />
+                    </button>
+
+                    <label className="chat-composer-input-label">
+                      <span className="sr-only">Tulis pesan</span>
+                      <textarea
+                        ref={textareaRef}
+                        rows={1}
+                        maxLength={4000}
+                        className="chat-composer-input"
+                        value={text}
+                        onChange={(e) => {
+                          setText(e.target.value);
+                          setError("");
+                          e.target.style.height = "auto";
+                          e.target.style.height = `${Math.min(e.target.scrollHeight, 112)}px`;
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && !e.shiftKey) {
+                            e.preventDefault();
+                            sendMessage();
+                          }
+                        }}
+                        placeholder="Tulis pesan..."
+                      />
+                    </label>
+
+                    <button
+                      type="submit"
+                      className="chat-composer-send-btn"
+                      aria-label="Kirim pesan"
+                      disabled={!text.trim() && images.length === 0}
+                    >
+                      <Send size={16} strokeWidth={2} />
+                    </button>
+                  </div>
+                </div>
               </form>
+
+              <EmojiSelectorModal
+                isOpen={showEmojiModal}
+                onSelect={handleInsertEmoji}
+                onClose={() => setShowEmojiModal(false)}
+              />
             </>
           ) : (
             <div className="empty-state chat-empty">
               <h2>
-                {selectedKey ? "Percakapan tidak tersedia" : "Pilih percakapan"}
+                {selectedKey
+                  ? "Percakapan tidak tersedia"
+                  : "Belum ada obrolan dipilih"}
               </h2>
               <p>
                 {selectedKey
                   ? "Kembali ke daftar atau mulai percakapan baru."
-                  : "Mulai percakapan dengan memilih akun di daftar."}
+                  : "Pilih obrolan untuk mulai membaca atau mengirim pesan."}
               </p>
-              <Link href="/messages">Lihat daftar percakapan</Link>
-              <Button onClick={() => setNew(true)}>Pesan baru</Button>
             </div>
           )}
         </section>
       </div>
+
       {newMessage && (
         <Dialog title="Pesan baru" onClose={() => setNew(false)}>
           <div className="dialog-body">
@@ -236,7 +589,10 @@ export function Messages({ selectedKey }: { selectedKey?: string }) {
                 >
                   <Avatar name={person.name} src={person.image} />
                   <span>
-                    <strong>{person.name}</strong>
+                    <strong>
+                      {person.name}
+                      <VerifiedBadge role={person.role} size={14} />
+                    </strong>
                     <small>@{person.username}</small>
                   </span>
                 </button>

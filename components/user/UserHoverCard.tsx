@@ -4,7 +4,18 @@ import Link from "next/link";
 import { useDemo } from "@/features/auth/DemoProvider";
 import { Avatar } from "@/components/ui/Avatar";
 import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
-import type { Person } from "@/types/models";
+import type { Person, Post } from "@/types/models";
+
+export function countPublicPosts(posts: Post[], authorKey?: string): number {
+  if (!authorKey) return 0;
+  return posts.filter(
+    (p) =>
+      !p.isDeleted &&
+      !p.hidden &&
+      p.authorKey === authorKey &&
+      !p.anonymous,
+  ).length;
+}
 
 interface UserHoverCardProps {
   person: Person;
@@ -48,12 +59,10 @@ export function UserHoverCard({ person, children }: UserHoverCardProps) {
     }, 200);
   };
 
-  const postCount = useMemo(() => {
-    const authored = posts.filter(
-      (p) => !p.isDeleted && p.authorKey === person.localKey && !p.anonymous,
-    ).length;
-    return authored > 0 ? authored : 12;
-  }, [posts, person.localKey]);
+  const postCount = useMemo(
+    () => countPublicPosts(posts, person.localKey),
+    [posts, person.localKey],
+  );
 
   const followerDisplay = useMemo(() => {
     if (mockFollowerMap[person.localKey]) {

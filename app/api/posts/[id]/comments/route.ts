@@ -64,6 +64,16 @@ export async function GET(req: NextRequest, { params }: Params) {
       map.set(c.id, {
         ...c,
         images: c.images || [],
+        author: c.isAnonymous
+          ? {
+              id: "anonymous",
+              name: "Anonim",
+              username: "anonim",
+              image: null,
+              role: "USER" as const,
+              agencyName: null,
+            }
+          : c.author,
         userInteraction: {
           hasUpvoted: userVotes[c.id] === "UP",
           hasDownvoted: userVotes[c.id] === "DOWN",
@@ -107,7 +117,17 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     const body = await req.json();
 
-    const { content, parentId = null, images = [] } = body;
+    const {
+      content,
+      parentId = null,
+      images = [],
+      isActionTaken = false,
+      is_action_taken = false,
+      isAnonymous = false,
+      is_anonymous = false,
+    } = body;
+    const actionTakenFlag = Boolean(isActionTaken || is_action_taken);
+    const anonFlag = actionTakenFlag ? false : Boolean(isAnonymous || is_anonymous);
 
     // Prevent double-click duplicate comment
     if (isDuplicateRequest(`comment:${currentUser.id}:${postId}:${content?.trim()}`, 1500)) {
@@ -129,6 +149,21 @@ export async function POST(req: NextRequest, { params }: Params) {
         { success: false, error: "Maximum 6 images allowed per comment" },
         { status: 400 }
       );
+    }
+
+    if (actionTakenFlag) {
+      if (currentUser.role !== "GOVERNMENT" && currentUser.role !== "INTERNAL") {
+        return NextResponse.json(
+          { success: false, error: "Only GOVERNMENT or INTERNAL accounts can submit an action-taken response" },
+          { status: 403 }
+        );
+      }
+      if (!Array.isArray(images) || images.length === 0) {
+        return NextResponse.json(
+          { success: false, error: "Action-taken response requires at least 1 photo or video attachment" },
+          { status: 400 }
+        );
+      }
     }
 
     // Check post status
@@ -177,15 +212,20 @@ export async function POST(req: NextRequest, { params }: Params) {
       images: Array.isArray(images) ? images : [],
       upvotesCount: 0,
       downvotesCount: 0,
+      isActionTaken: actionTakenFlag,
+      isAnonymous: anonFlag,
       isDeleted: false,
       createdAt: now,
       updatedAt: now,
     });
 
-    // 2. Increment post comments count
+    // 2. Increment post comments count (and record resolutionCommentId if actionTakenFlag)
     await db
       .update(posts)
-      .set({ commentsCount: sql`${posts.commentsCount} + 1` })
+      .set({
+        commentsCount: sql`${posts.commentsCount} + 1`,
+        ...(actionTakenFlag ? { resolutionCommentId: commentId, updatedAt: now } : {}),
+      })
       .where(eq(posts.id, postId));
 
     // 3. Send notification (if not commenting on own content)
@@ -212,14 +252,25 @@ export async function POST(req: NextRequest, { params }: Params) {
           parentId,
           content: content.trim(),
           images: Array.isArray(images) ? images : [],
-          author: {
-            id: currentUser.id,
-            name: currentUser.name,
-            username: currentUser.username,
-            image: currentUser.image,
-            role: currentUser.role,
-            agencyName: currentUser.agencyName,
-          },
+          isActionTaken: actionTakenFlag,
+          isAnonymous: anonFlag,
+          author: anonFlag
+            ? {
+                id: "anonymous",
+                name: "Anonim",
+                username: "anonim",
+                image: null,
+                role: "USER",
+                agencyName: null,
+              }
+            : {
+                id: currentUser.id,
+                name: currentUser.name,
+                username: currentUser.username,
+                image: currentUser.image,
+                role: currentUser.role,
+                agencyName: currentUser.agencyName,
+              },
           createdAt: now,
         },
       },

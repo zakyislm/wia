@@ -179,12 +179,61 @@ export function Notifications() {
   }
 
   return (
-    <ProductShell title="Notifikasi" active="notifications" hideHeader>
+    <ProductShell title="Notifikasi" active="notifications">
       <section className="feed-surface notif-surface">
-        {/* Custom Header matching Substack / Image 2 */}
+        {/* Toolbar Row: Segmented Pills + Select Mode Toggle */}
         <header className="notif-page-header">
           <div className="notif-header-top">
-            <h1 className="notif-page-title">Notifikasi</h1>
+            <div className="notif-segmented-control" role="tablist" aria-label="Filter notifikasi">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={tab === "all"}
+                className={`notif-segment-btn ${tab === "all" ? "active" : ""}`}
+                onClick={() => setTab("all")}
+              >
+                <span>Semua</span>
+                {counts.all > 0 && (
+                  <span className="notif-count-badge">{counts.all}</span>
+                )}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={tab === "unread"}
+                className={`notif-segment-btn ${tab === "unread" ? "active" : ""}`}
+                onClick={() => setTab("unread")}
+              >
+                <span>Belum Dibaca</span>
+                {counts.unread > 0 && (
+                  <span className="notif-count-badge">{counts.unread}</span>
+                )}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={tab === "replies"}
+                className={`notif-segment-btn ${tab === "replies" ? "active" : ""}`}
+                onClick={() => setTab("replies")}
+              >
+                <span>Balasan</span>
+                {counts.replies > 0 && (
+                  <span className="notif-count-badge">{counts.replies}</span>
+                )}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={tab === "activity"}
+                className={`notif-segment-btn ${tab === "activity" ? "active" : ""}`}
+                onClick={() => setTab("activity")}
+              >
+                <span>Aktivitas</span>
+                {counts.activity > 0 && (
+                  <span className="notif-count-badge">{counts.activity}</span>
+                )}
+              </button>
+            </div>
             <button
               type="button"
               className={`notif-check-mode-btn ${isSelecting ? "active" : ""}`}
@@ -193,58 +242,6 @@ export function Notifications() {
               title={isSelecting ? "Selesai memilih" : "Pilih notifikasi"}
             >
               <CheckCheck size={20} />
-            </button>
-          </div>
-
-          {/* Segmented Control Pill Bar */}
-          <div className="notif-segmented-control" role="tablist" aria-label="Filter notifikasi">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={tab === "all"}
-              className={`notif-segment-btn ${tab === "all" ? "active" : ""}`}
-              onClick={() => setTab("all")}
-            >
-              <span>Semua</span>
-              {counts.all > 0 && (
-                <span className="notif-count-badge">{counts.all}</span>
-              )}
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={tab === "unread"}
-              className={`notif-segment-btn ${tab === "unread" ? "active" : ""}`}
-              onClick={() => setTab("unread")}
-            >
-              <span>Belum Dibaca</span>
-              {counts.unread > 0 && (
-                <span className="notif-count-badge">{counts.unread}</span>
-              )}
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={tab === "replies"}
-              className={`notif-segment-btn ${tab === "replies" ? "active" : ""}`}
-              onClick={() => setTab("replies")}
-            >
-              <span>Balasan</span>
-              {counts.replies > 0 && (
-                <span className="notif-count-badge">{counts.replies}</span>
-              )}
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={tab === "activity"}
-              className={`notif-segment-btn ${tab === "activity" ? "active" : ""}`}
-              onClick={() => setTab("activity")}
-            >
-              <span>Aktivitas</span>
-              {counts.activity > 0 && (
-                <span className="notif-count-badge">{counts.activity}</span>
-              )}
             </button>
           </div>
 

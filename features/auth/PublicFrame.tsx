@@ -1,4 +1,5 @@
 "use client";
+import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
@@ -15,8 +16,15 @@ export function PublicFrame({
     <div className="public-surface">
       <main className="auth-page">
         <section className={`auth-card ${wide ? "auth-card-wide" : ""}`}>
-          <Link className="wordmark" href="/login">
-            k!
+          <Link className="wordmark" href="/login" aria-label="KAVI">
+            <Image
+              src="/kavi.png"
+              alt="KAVI"
+              width={96}
+              height={96}
+              className="wordmark-img"
+              preload
+            />
           </Link>
           <h1>{title}</h1>
           {children}

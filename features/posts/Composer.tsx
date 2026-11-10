@@ -5,20 +5,26 @@ import {
   Image as ImageIcon,
   MapPin,
   Smile,
-  Tag as TagIcon,
   ChevronDown,
   X,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Dialog } from "@/components/ui/Dialog";
 import { Avatar } from "@/components/ui/Avatar";
+import {
+  MediaAttachmentPreview,
+  createMediaPreviewUrl,
+} from "@/components/ui/MediaGallery";
 import { useDemo } from "@/features/auth/DemoProvider";
-import { mediaError } from "@/lib/validation";
+import {
+  extractClipboardMediaFiles,
+  mediaError,
+} from "@/lib/validation";
 import type { Post, Topic } from "@/types/models";
 import { TopicSelectorModal } from "@/components/selectors/TopicSelectorModal";
 import { LocationSelectorModal } from "@/components/selectors/LocationSelectorModal";
 import { EmojiSelectorModal } from "@/components/selectors/EmojiSelectorModal";
-import { TagSelectorModal } from "@/components/selectors/TagSelectorModal";
+import { InlineTokenSuggest } from "@/components/selectors/InlineTokenSuggest";
 import { DraftsView } from "./DraftsView";
 import {
   type ComposerDraft,
@@ -27,13 +33,16 @@ import {
   loadDrafts,
 } from "./draftsStorage";
 
+const TITLE_MAX_LEN = 100;
+const CONTENT_MAX_LEN = 500;
+
 interface ComposerProps {
   onClose: () => void;
   initialMode?: "post" | "report";
 }
 
 export function Composer({ onClose, initialMode = "report" }: ComposerProps) {
-  const { user, setPosts } = useDemo();
+  const { user, people, setPosts } = useDemo();
   const router = useRouter();
 
   // Mode: "post" or "report"
@@ -41,13 +50,20 @@ export function Composer({ onClose, initialMode = "report" }: ComposerProps) {
   // View: "editor" or "drafts"
   const [view, setView] = useState<"editor" | "drafts">("editor");
 
-  const [currentDraftId, setCurrentDraftId] = useState<string>(() => crypto.randomUUID());
+  const [currentDraftId, setCurrentDraftId] = useState<string>(() =>
+    crypto.randomUUID(),
+  );
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [selectedTopic, setSelectedTopic] = useState<Topic | null>(null);
   const [location, setLocation] = useState("");
   const [tags, setTags] = useState<string[]>([]);
   const [images, setImages] = useState<string[]>([]);
+  const [isAnonymous, setIsAnonymous] = useState(false);
+  const [activeField, setActiveField] = useState<"title" | "content" | null>(
+    initialMode === "report" ? "title" : "content",
+  );
+  const [shakeField, setShakeField] = useState<"title" | "content" | null>(null);
   const [error, setError] = useState("");
   const [draftCount, setDraftCount] = useState(0);
 
@@ -55,12 +71,20 @@ export function Composer({ onClose, initialMode = "report" }: ComposerProps) {
   const [showTopicModal, setShowTopicModal] = useState(false);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [showEmojiModal, setShowEmojiModal] = useState(false);
-  const [showTagModal, setShowTagModal] = useState(false);
 
+  const titleRef = useRef<HTMLTextAreaElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const urls = useRef<string[]>([]);
   const published = useRef(false);
+
+  // Auto-resize report title textarea as it wraps (capped at max-height via CSS)
+  useEffect(() => {
+    const el = titleRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 68)}px`;
+  }, [title, mode, view]);
 
   // Update draft count on mount and view changes
   useEffect(() => {
@@ -71,7 +95,9 @@ export function Composer({ onClose, initialMode = "report" }: ComposerProps) {
   useEffect(
     () => () => {
       if (!published.current)
-        urls.current.forEach((url) => URL.revokeObjectURL(url));
+        urls.current.forEach((url) =>
+          URL.revokeObjectURL(url.replace(/#video$/, "")),
+        );
     },
     [],
   );
@@ -97,13 +123,24 @@ export function Composer({ onClose, initialMode = "report" }: ComposerProps) {
         location,
         tags,
         images,
+        anonymous: isAnonymous,
         updatedAt: Date.now(),
       });
       setDraftCount(loadDrafts().length);
     }, 600);
 
     return () => clearTimeout(timer);
-  }, [currentDraftId, mode, title, content, selectedTopic, location, tags, images]);
+  }, [
+    currentDraftId,
+    mode,
+    title,
+    content,
+    selectedTopic,
+    location,
+    tags,
+    images,
+    isAnonymous,
+  ]);
 
   // Handle selecting a draft from DraftsView
   const handleSelectDraft = useCallback((draft: ComposerDraft) => {
@@ -115,6 +152,7 @@ export function Composer({ onClose, initialMode = "report" }: ComposerProps) {
     setLocation(draft.location || "");
     setTags(draft.tags || []);
     setImages(draft.images || []);
+    setIsAnonymous(Boolean(draft.anonymous));
     setError("");
     setView("editor");
   }, []);
@@ -128,30 +166,47 @@ export function Composer({ onClose, initialMode = "report" }: ComposerProps) {
     setLocation("");
     setTags([]);
     setImages([]);
+    setIsAnonymous(false);
     setError("");
     setView("editor");
   }, []);
 
+  const shakeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function triggerShake(field: "title" | "content") {
+    setShakeField(null);
+    requestAnimationFrame(() => {
+      setShakeField(field);
+      if (shakeTimerRef.current) clearTimeout(shakeTimerRef.current);
+      shakeTimerRef.current = setTimeout(() => {
+        setShakeField(null);
+      }, 300);
+    });
+  }
+
   function handleEmojiSelect(emoji: string) {
     const textarea = textareaRef.current;
+    if (content.length + emoji.length > CONTENT_MAX_LEN) {
+      triggerShake("content");
+      return;
+    }
     if (!textarea) {
-      setContent((prev) => prev + emoji);
+      setContent((prev) => (prev + emoji).slice(0, CONTENT_MAX_LEN));
       return;
     }
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
-    const nextContent = content.substring(0, start) + emoji + content.substring(end);
+    const nextContent = (
+      content.substring(0, start) +
+      emoji +
+      content.substring(end)
+    ).slice(0, CONTENT_MAX_LEN);
     setContent(nextContent);
     setTimeout(() => {
       textarea.focus();
+      setActiveField("content");
       textarea.setSelectionRange(start + emoji.length, start + emoji.length);
     }, 10);
-  }
-
-  function handleToggleTag(tag: string) {
-    setTags((prev) =>
-      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag],
-    );
   }
 
   function publish() {
@@ -187,6 +242,32 @@ export function Composer({ onClose, initialMode = "report" }: ComposerProps) {
         ? `${title.trim()}\n\n${content.trim()}`
         : content.trim();
 
+    // Extract inline #hashtags from content
+    const inlineTags = Array.from(
+      fullContent.matchAll(/#([a-zA-Z0-9_]+)/g),
+      (m) => m[1],
+    );
+    const mergedTags = Array.from(
+      new Set([
+        ...tags.map((t) => t.replace(/^#/, "")),
+        ...inlineTags,
+      ]),
+    );
+
+    // Extract inline @agency mentions from content
+    const inlineMentions = Array.from(
+      fullContent.matchAll(/@([a-zA-Z0-9_]+)/g),
+      (m) => m[1].toLowerCase(),
+    );
+    const matchedAgencies = people
+      .filter(
+        (p) =>
+          p.role === "GOVERNMENT" &&
+          (inlineMentions.includes(p.username.toLowerCase()) ||
+            inlineMentions.includes(p.localKey.toLowerCase())),
+      )
+      .map((p) => p.localKey);
+
     const topicId = selectedTopic?.id || "top_komunitas";
     const topicSlug = selectedTopic?.slug || "komunitas";
     const topicName = selectedTopic?.name || "Komunitas";
@@ -201,12 +282,14 @@ export function Composer({ onClose, initialMode = "report" }: ComposerProps) {
       authorKey: user.localKey,
       postedAt: Date.now(),
       kind: mode === "report" ? "report" : "general",
-      anonymous: false,
+      reportStatus: mode === "report" ? "waiting" : undefined,
+      anonymous: isAnonymous,
       content: fullContent,
       province: location.split(",").pop()?.trim() || location,
+      locationName: location,
       category: topicName,
-      tags: tags.length ? tags : undefined,
-      agencyKeys: [],
+      tags: mergedTags.length ? mergedTags : undefined,
+      agencyKeys: matchedAgencies,
       images,
       upvotesCount: 0,
       vote: null,
@@ -225,8 +308,40 @@ export function Composer({ onClose, initialMode = "report" }: ComposerProps) {
   // Can post check
   const isPostDisabled =
     mode === "report"
-      ? !title.trim() || !selectedTopic || !location.trim() || (!content.trim() && !images.length)
+      ? !title.trim() ||
+        !selectedTopic ||
+        !location.trim() ||
+        (!content.trim() && !images.length)
       : !content.trim() && !images.length;
+
+  const activeRemaining =
+    activeField === "title" && mode === "report"
+      ? TITLE_MAX_LEN - title.length
+      : activeField === "content"
+        ? CONTENT_MAX_LEN - content.length
+        : null;
+  const showCharIndicator =
+    activeRemaining !== null && activeRemaining <= 3;
+
+  function appendMediaFiles(files: File[]) {
+    if (files.length === 0) return;
+    const message = mediaError(files, images.length);
+    if (message) {
+      setError(message);
+      return;
+    }
+    const added = files.map(createMediaPreviewUrl);
+    urls.current.push(...added);
+    setImages((current) => [...current, ...added]);
+    setError("");
+  }
+
+  function handlePasteMedia(event: React.ClipboardEvent<HTMLTextAreaElement>) {
+    const files = extractClipboardMediaFiles(event.clipboardData);
+    if (files.length === 0) return;
+    event.preventDefault();
+    appendMediaFiles(files);
+  }
 
   return (
     <>
@@ -234,7 +349,7 @@ export function Composer({ onClose, initialMode = "report" }: ComposerProps) {
         title={mode === "report" ? "Lapor Warga" : "Buat Postingan"}
         onClose={onClose}
         hideHeader
-        className="composer-dialog-container"
+        className={`composer-dialog-container ${view === "drafts" ? "composer-dialog-container--drafts" : ""} ${view === "editor" && images.length > 0 ? "composer-dialog-container--has-media" : ""}`.trim()}
       >
         <div className="composer-slider-container" data-view={view}>
           <div className="composer-slider-track">
@@ -248,260 +363,364 @@ export function Composer({ onClose, initialMode = "report" }: ComposerProps) {
                 <div className="composer-split-layout">
                   {/* Left Column: Avatar */}
                   <div className="composer-avatar-col">
-                <Avatar name={user?.name ?? "User"} src={user?.image} />
-              </div>
-
-              {/* Right Column: Name, Topic/Status, Form Fields */}
-              <div className="composer-main-col">
-                {/* Header Row: User Name • Topic + Drafts */}
-                <div className="composer-header-row">
-                  <div className="composer-user-meta">
-                    <span className="composer-user-name">
-                      {user?.name ?? "User"}
-                    </span>
-
-                    {mode === "report" && (
-                      <>
-                        <span className="composer-dot">•</span>
-                        <button
-                          type="button"
-                          className="composer-topic-trigger"
-                          onClick={() => setShowTopicModal(true)}
-                        >
-                          {selectedTopic ? (
-                            <span className="composer-topic-active">
-                              {selectedTopic.name}{" "}
-                              <ChevronDown size={15} strokeWidth={1.8} />
-                            </span>
-                          ) : (
-                            <span className="composer-topic-empty">
-                              <span className="required-star">*</span>Pilih Topik{" "}
-                              <ChevronDown size={15} strokeWidth={1.8} />
-                            </span>
-                          )}
-                        </button>
-                      </>
-                    )}
+                    <Avatar name={user?.name ?? "User"} src={user?.image} />
                   </div>
 
-                  <button
-                    type="button"
-                    className="composer-drafts-btn"
-                    onClick={() => setView("drafts")}
-                  >
-                    Drafts {draftCount > 0 ? `(${draftCount})` : ""}
-                  </button>
-                </div>
+                  {/* Right Column: Name, Topic/Status, Form Fields */}
+                  <div className="composer-main-col">
+                    {/* Header Row: User Name • Topic + Drafts */}
+                    <div className="composer-header-row">
+                      <div className="composer-user-meta">
+                        <span className="composer-user-name">
+                          {user?.name ?? "User"}
+                        </span>
 
-                {/* Title Row (Report Mode ONLY) */}
-                {mode === "report" && (
-                  <div className="composer-title-row">
-                    <span className="required-star">*</span>
-                    <input
-                      type="text"
-                      autoFocus
-                      className="composer-title-input"
-                      placeholder="Judul laporan"
-                      value={title}
-                      onChange={(e) => {
-                        setTitle(e.target.value);
-                        setError("");
+                        {mode === "report" && (
+                          <>
+                            <span className="composer-dot">•</span>
+                            <button
+                              type="button"
+                              className="composer-topic-trigger"
+                              onClick={() => setShowTopicModal(true)}
+                            >
+                              {selectedTopic ? (
+                                <span className="composer-topic-active">
+                                  {selectedTopic.name}{" "}
+                                  <ChevronDown size={15} strokeWidth={1.8} />
+                                </span>
+                              ) : (
+                                <span className="composer-topic-empty">
+                                  <span className="required-star">*</span>Pilih
+                                  Topik{" "}
+                                  <ChevronDown size={15} strokeWidth={1.8} />
+                                </span>
+                              )}
+                            </button>
+                          </>
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        className="composer-drafts-btn"
+                        onClick={() => setView("drafts")}
+                      >
+                        Drafts {draftCount > 0 ? `(${draftCount})` : ""}
+                      </button>
+                    </div>
+
+                    {/* Title Row (Report Mode ONLY) */}
+                    {mode === "report" && (
+                      <div
+                        className={`composer-title-row ${shakeField === "title" ? "is-shaking" : ""}`}
+                      >
+                        <span className="required-star">*</span>
+                        <textarea
+                          ref={titleRef}
+                          rows={1}
+                          autoFocus
+                          className="composer-title-input"
+                          placeholder="Judul laporan"
+                          value={title}
+                          onPaste={handlePasteMedia}
+                          onFocus={() => setActiveField("title")}
+                          onBlur={() =>
+                            setActiveField((prev) =>
+                              prev === "title" ? null : prev,
+                            )
+                          }
+                          onChange={(e) => {
+                            const cleaned = e.target.value.replace(
+                              /[\r\n]+/g,
+                              " ",
+                            );
+                            if (cleaned.length > TITLE_MAX_LEN) {
+                              setTitle(cleaned.slice(0, TITLE_MAX_LEN));
+                              triggerShake("title");
+                            } else {
+                              setTitle(cleaned);
+                            }
+                            setError("");
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              textareaRef.current?.focus();
+                              return;
+                            }
+                            const el = e.currentTarget;
+                            const hasSelection =
+                              el.selectionStart !== el.selectionEnd;
+                            const isPrintable =
+                              e.key.length === 1 &&
+                              !e.ctrlKey &&
+                              !e.metaKey &&
+                              !e.altKey;
+                            if (
+                              isPrintable &&
+                              !hasSelection &&
+                              title.length >= TITLE_MAX_LEN
+                            ) {
+                              e.preventDefault();
+                              triggerShake("title");
+                            }
+                          }}
+                        />
+                      </div>
+                    )}
+
+                    {/* Body Textarea (Left-aligned with User Name) */}
+                    <div className="composer-body-row">
+                      <textarea
+                        ref={textareaRef}
+                        autoFocus={mode === "post"}
+                        className={`composer-textarea ${shakeField === "content" ? "is-shaking" : ""}`}
+                        placeholder={
+                          mode === "report"
+                            ? "Jelaskan permasalahan atau aduan warga... (ketik # untuk tag atau @ untuk mention)"
+                            : "Ada cerita apa hari ini? (ketik # untuk tag)"
+                        }
+                        value={content}
+                        onPaste={handlePasteMedia}
+                        onFocus={() => setActiveField("content")}
+                        onBlur={() =>
+                          setActiveField((prev) =>
+                            prev === "content" ? null : prev,
+                          )
+                        }
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val.length > CONTENT_MAX_LEN) {
+                            setContent(val.slice(0, CONTENT_MAX_LEN));
+                            triggerShake("content");
+                          } else {
+                            setContent(val);
+                          }
+                          setError("");
+                        }}
+                        onKeyDown={(e) => {
+                          const el = e.currentTarget;
+                          const hasSelection =
+                            el.selectionStart !== el.selectionEnd;
+                          const isPrintable =
+                            (e.key.length === 1 || e.key === "Enter") &&
+                            !e.ctrlKey &&
+                            !e.metaKey &&
+                            !e.altKey;
+                          if (
+                            isPrintable &&
+                            !hasSelection &&
+                            content.length >= CONTENT_MAX_LEN
+                          ) {
+                            e.preventDefault();
+                            triggerShake("content");
+                          }
+                        }}
+                        rows={4}
+                      />
+
+                      {/* Active Chips (Location) */}
+                      {location && (
+                        <div className="composer-chips-row">
+                          <div className="composer-chip composer-location-chip">
+                            <MapPin size={13} />
+                            <span>{location}</span>
+                            <button
+                              type="button"
+                              onClick={() => setLocation("")}
+                              aria-label="Hapus lokasi"
+                            >
+                              <X size={12} />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Attached Images/Videos */}
+                      <MediaAttachmentPreview
+                        media={images}
+                        altPrefix="Lampiran"
+                        onRemove={(src) => {
+                          URL.revokeObjectURL(src.replace(/#video$/, ""));
+                          setImages((current) =>
+                            current.filter((image) => image !== src),
+                          );
+                        }}
+                      />
+
+                      {error && (
+                        <p className="composer-error" role="alert">
+                          {error}
+                        </p>
+                      )}
+                    </div>
+
+                    <InlineTokenSuggest
+                      value={content}
+                      textareaRef={textareaRef}
+                      onInsert={(nextValue, nextCursor) => {
+                        setContent(nextValue);
+                        setTimeout(() => {
+                          const el = textareaRef.current;
+                          if (el) {
+                            el.focus();
+                            el.setSelectionRange(nextCursor, nextCursor);
+                          }
+                        }, 10);
                       }}
                     />
                   </div>
-                )}
+                </div>
 
-                {/* Body Textarea (Left-aligned with User Name) */}
-                <div className="composer-body-row">
-                  <textarea
-                    ref={textareaRef}
-                    autoFocus={mode === "post"}
-                    className="composer-textarea"
-                    placeholder={
-                      mode === "report"
-                        ? "Jelaskan permasalahan atau aduan warga..."
-                        : "Ada cerita apa hari ini?"
-                    }
-                    value={content}
-                    onChange={(e) => {
-                      setContent(e.target.value);
-                      setError("");
-                    }}
-                    rows={4}
-                  />
+                {/* Bottom Bar: Spans FULL WIDTH across the card (aligned with card padding) */}
+                <div className="composer-card-footer">
+                  <div className="composer-tools">
+                    <button
+                      type="button"
+                      className="composer-tool-btn"
+                      title="Tambah foto/video"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <ImageIcon size={20} strokeWidth={1.8} />
+                    </button>
+                    {/* Native file input strictly hidden */}
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".png,.jpg,.jpeg,.webp,.gif,.mp4,.webm,image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm"
+                      multiple
+                      style={{ display: "none" }}
+                      onChange={(event) => {
+                        appendMediaFiles(Array.from(event.target.files ?? []));
+                        event.target.value = "";
+                      }}
+                    />
 
-                  {/* Active Chips (Location, Tags) */}
-                  {(location || tags.length > 0) && (
-                    <div className="composer-chips-row">
-                      {location && (
-                        <div className="composer-chip composer-location-chip">
-                          <MapPin size={13} />
-                          <span>{location}</span>
-                          <button
-                            type="button"
-                            onClick={() => setLocation("")}
-                            aria-label="Hapus lokasi"
-                          >
-                            <X size={12} />
-                          </button>
+                    <button
+                      type="button"
+                      className={`composer-tool-btn ${location ? "active" : ""} ${
+                        mode === "report" && !location
+                          ? "required-highlight"
+                          : ""
+                      }`}
+                      title={
+                        mode === "report"
+                          ? "*Pilih lokasi (wajib)"
+                          : "Pilih lokasi"
+                      }
+                      onClick={() => setShowLocationModal(true)}
+                    >
+                      <MapPin size={20} strokeWidth={1.8} />
+                    </button>
+
+                    <button
+                      type="button"
+                      className="composer-tool-btn"
+                      title="Tambah emoji"
+                      onClick={() => setShowEmojiModal(true)}
+                    >
+                      <Smile size={20} strokeWidth={1.8} />
+                    </button>
+
+                    {/* Anonymous Switch + Help Tooltip grouped with left tools */}
+                    <div className="composer-anon-control">
+                      <span
+                        className={`composer-anon-icon ${isAnonymous ? "is-active" : ""}`}
+                        aria-hidden="true"
+                      >
+                        <svg
+                          width="19"
+                          height="19"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.9"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M14 18a2 2 0 0 0-4 0" />
+                          <path d="m19 11-2.11-6.657a2 2 0 0 0-2.752-1.148l-1.276.61A2 2 0 0 1 12 4H8.5a2 2 0 0 0-1.925 1.456L5 11" />
+                          <path d="M2 11h20" />
+                          <circle cx="17" cy="18" r="3" />
+                          <circle cx="7" cy="18" r="3" />
+                        </svg>
+                      </span>
+
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={isAnonymous}
+                        aria-label="Posting secara anonim"
+                        className={`composer-anon-switch ${isAnonymous ? "is-on" : ""}`}
+                        onClick={() => setIsAnonymous((prev) => !prev)}
+                      >
+                        <span className="composer-anon-switch-thumb" />
+                      </button>
+
+                      <div className="composer-anon-help-wrap">
+                        <button
+                          type="button"
+                          className="composer-anon-help"
+                          aria-label="Info posting secara anonim"
+                        >
+                          ?
+                        </button>
+                        <div className="composer-anon-tooltip" role="tooltip">
+                          Posting secara anonim
                         </div>
-                      )}
-                      {tags.map((tag) => (
-                        <div key={tag} className="composer-chip composer-tag-chip">
-                          <span>{tag}</span>
-                          <button
-                            type="button"
-                            onClick={() => handleToggleTag(tag)}
-                            aria-label={`Hapus tag ${tag}`}
-                          >
-                            <X size={12} />
-                          </button>
-                        </div>
-                      ))}
+                      </div>
                     </div>
-                  )}
+                  </div>
 
-                  {/* Attached Images/Videos */}
-                  {images.length > 0 && (
-                    <div className="composer-photo-grid">
-                      {images.map((src, index) => {
-                        const isVideo =
-                          src.match(/\.(mp4|webm)($|\?)/i) || src.includes("video");
-                        return (
-                          <figure key={src} className="composer-photo-thumb">
-                            {isVideo ? (
-                              <video src={src} muted autoPlay loop playsInline />
-                            ) : (
-                              <img src={src} alt={`Lampiran ${index + 1}`} />
-                            )}
-                            <button
-                              type="button"
-                              aria-label={`Hapus media ${index + 1}`}
-                              onClick={() => {
-                                URL.revokeObjectURL(src);
-                                setImages((current) =>
-                                  current.filter((image) => image !== src),
-                                );
-                              }}
-                            >
-                              <X size={14} />
-                            </button>
-                          </figure>
-                        );
-                      })}
-                    </div>
-                  )}
+                  {/* Center: Dynamic Remaining Character Indicator (<= 3 chars on active field) */}
+                  <div className="composer-char-center-slot">
+                    {showCharIndicator && (
+                      <span
+                        className={`composer-char-indicator ${activeRemaining === 0 ? "is-zero" : ""} ${shakeField ? "is-shaking" : ""}`}
+                        aria-live="polite"
+                      >
+                        {activeRemaining}
+                      </span>
+                    )}
+                  </div>
 
-                  {error && (
-                    <p className="composer-error" role="alert">
-                      {error}
-                    </p>
-                  )}
+                  <div className="composer-footer-actions">
+                    <button
+                      type="button"
+                      className="composer-cancel-btn"
+                      onClick={onClose}
+                    >
+                      Batal
+                    </button>
+
+                    <button
+                      type="button"
+                      className="composer-post-btn"
+                      disabled={isPostDisabled}
+                      onClick={publish}
+                    >
+                      {mode === "report" ? "Kirim Laporan" : "Posting"}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Bottom Bar: Spans FULL WIDTH across the card (aligned with card padding) */}
-            <div className="composer-card-footer">
-              <div className="composer-tools">
-                <button
-                  type="button"
-                  className="composer-tool-btn"
-                  title="Tambah foto/video"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <ImageIcon size={20} strokeWidth={1.8} />
-                </button>
-                {/* Native file input strictly hidden */}
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".png,.jpg,.jpeg,.webp,.gif,.mp4,.webm,image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm"
-                  multiple
-                  style={{ display: "none" }}
-                  onChange={(event) => {
-                    const files = Array.from(event.target.files ?? []);
-                    const message = mediaError(files, images.length);
-                    if (message) setError(message);
-                    else {
-                      const added = files.map((file) =>
-                        URL.createObjectURL(file),
-                      );
-                      urls.current.push(...added);
-                      setImages((current) => [...current, ...added]);
-                      setError("");
-                    }
-                    event.target.value = "";
-                  }}
-                />
-
-                <button
-                  type="button"
-                  className={`composer-tool-btn ${location ? "active" : ""} ${
-                    mode === "report" && !location ? "required-highlight" : ""
-                  }`}
-                  title={mode === "report" ? "*Pilih lokasi (wajib)" : "Pilih lokasi"}
-                  onClick={() => setShowLocationModal(true)}
-                >
-                  <MapPin size={20} strokeWidth={1.8} />
-                </button>
-
-                <button
-                  type="button"
-                  className="composer-tool-btn"
-                  title="Tambah emoji"
-                  onClick={() => setShowEmojiModal(true)}
-                >
-                  <Smile size={20} strokeWidth={1.8} />
-                </button>
-
-                <button
-                  type="button"
-                  className={`composer-tool-btn ${tags.length > 0 ? "active" : ""}`}
-                  title="Tambah tag"
-                  onClick={() => setShowTagModal(true)}
-                >
-                  <TagIcon size={20} strokeWidth={1.8} />
-                </button>
-              </div>
-
-              <div className="composer-footer-actions">
-                <button
-                  type="button"
-                  className="composer-cancel-btn"
-                  onClick={onClose}
-                >
-                  Batal
-                </button>
-
-                <button
-                  type="button"
-                  className="composer-post-btn"
-                  disabled={isPostDisabled}
-                  onClick={publish}
-                >
-                  {mode === "report" ? "Kirim Laporan" : "Posting"}
-                </button>
-              </div>
+            {/* Slide 2: Drafts */}
+            <div
+              className="composer-slide composer-slide-drafts"
+              aria-hidden={view !== "drafts"}
+            >
+              <DraftsView
+                isActive={view === "drafts"}
+                onBack={() => setView("editor")}
+                onSelectDraft={handleSelectDraft}
+                onCreateNew={handleCreateNew}
+              />
             </div>
           </div>
         </div>
-
-        {/* Slide 2: Drafts */}
-        <div
-          className="composer-slide composer-slide-drafts"
-          aria-hidden={view !== "drafts"}
-        >
-          <DraftsView
-            isActive={view === "drafts"}
-            onBack={() => setView("editor")}
-            onSelectDraft={handleSelectDraft}
-            onCreateNew={handleCreateNew}
-          />
-        </div>
-      </div>
-    </div>
-  </Dialog>
+      </Dialog>
 
       {/* Sub-selector modals */}
       <TopicSelectorModal
@@ -528,13 +747,6 @@ export function Composer({ onClose, initialMode = "report" }: ComposerProps) {
         isOpen={showEmojiModal}
         onClose={() => setShowEmojiModal(false)}
         onSelect={handleEmojiSelect}
-      />
-
-      <TagSelectorModal
-        isOpen={showTagModal}
-        onClose={() => setShowTagModal(false)}
-        selectedTags={tags}
-        onToggleTag={handleToggleTag}
       />
     </>
   );

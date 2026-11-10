@@ -1,9 +1,5 @@
-import { Suspense } from "react";
-import { AgencyInbox } from "@/features/agency/AgencyInbox";
-export default function Page() {
-  return (
-    <Suspense fallback={<p role="status">Memuat…</p>}>
-      <AgencyInbox />
-    </Suspense>
-  );
+import { redirect } from "next/navigation";
+
+export default function LegacyAgencyRedirect() {
+  redirect("/tugas");
 }

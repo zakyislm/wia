@@ -5,6 +5,7 @@ import { CheckCircle2, AlertCircle, Clock3 } from "lucide-react";
 import { useDemo } from "@/features/auth/DemoProvider";
 import { photoError, resolutionResult } from "@/lib/validation";
 import { Button } from "@/components/ui/Button";
+import { MediaGallery } from "@/components/ui/MediaGallery";
 import type { Post } from "@/types/models";
 
 export function ResolutionPanel({ post }: { post: Post }) {
@@ -79,15 +80,10 @@ export function ResolutionPanel({ post }: { post: Post }) {
             </p>
             <p>{resolution.content}</p>
             {!!resolution.images.length && (
-              <div className="photo-grid">
-                {resolution.images.map((src, index) => (
-                  <img
-                    key={src}
-                    src={src}
-                    alt={`Bukti penyelesaian ${index + 1}`}
-                  />
-                ))}
-              </div>
+              <MediaGallery
+                media={resolution.images}
+                altPrefix="Bukti penyelesaian"
+              />
             )}
             <p className="small">
               Berakhir:{" "}

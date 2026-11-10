@@ -1,15 +1,55 @@
+/* eslint-disable @next/next/no-img-element -- Session-only blob URLs cannot use server image optimization. */
 "use client";
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  AlertCircle,
+  ArrowBigDown,
+  ArrowBigUp,
+  Ban,
+  Check,
+  ChevronDown,
+  Link2,
+  MapPin,
+  Megaphone,
+  MoreHorizontal,
+  PenSquare,
+  SlidersHorizontal,
+  Volume2,
+  VolumeX,
+  X,
+} from "lucide-react";
 import { useDemo } from "@/features/auth/DemoProvider";
 import { ProductShell } from "@/components/layout/ProductShell";
 import { Avatar } from "@/components/ui/Avatar";
+import { MediaGallery } from "@/components/ui/MediaGallery";
 import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
-import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
-import { PostCard } from "@/features/posts/PostCard";
+import { PostCard, renderWithMentions } from "@/features/posts/PostCard";
+import { Composer } from "@/features/posts/Composer";
+import { SearchTriggerButton } from "@/components/search/QuickSearchModal";
+import {
+  isReplyVisibleInProfileSearch,
+  matchesProfilePostQuery,
+  matchesProfileReplyQuery,
+  ProfileSearchModal,
+} from "@/features/profile/ProfileSearchModal";
+import { countPublicPosts } from "@/components/user/UserHoverCard";
+import { LocationSelectorModal } from "@/components/selectors/LocationSelectorModal";
 import { photoError } from "@/lib/validation";
-import type { Person } from "@/types/models";
+import type { Person, Post, Reply } from "@/types/models";
+
+function formatShortTime(timestamp?: number): string {
+  if (!timestamp) return "baru saja";
+  const diff = Math.max(0, Date.now() - timestamp);
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "baru saja";
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}j`;
+  return `${Math.floor(hours / 24)}h`;
+}
 
 function EditProfile({
   person,
@@ -25,6 +65,7 @@ function EditProfile({
   const [image, setImage] = useState(person.image);
   const [error, setError] = useState("");
   const [discard, setDiscard] = useState(false);
+  const [locationModalOpen, setLocationModalOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const created = useRef<string[]>([]);
   const dirty =
@@ -190,18 +231,38 @@ function EditProfile({
               />
             </label>
 
-            <label className="profile-edit-field">
+            <div className="profile-edit-field">
               <span className="profile-edit-label-row">
                 <span>Domisili</span>
+                {region && (
+                  <button
+                    type="button"
+                    className="profile-domisili-clear"
+                    onClick={() => setRegion("")}
+                  >
+                    Hapus
+                  </button>
+                )}
               </span>
-              <input
-                value={region}
-                maxLength={80}
-                onChange={(e) => setRegion(e.target.value)}
-                placeholder="Contoh: Bandung, Jawa Barat"
-              />
-            </label>
+              <button
+                type="button"
+                className="profile-domisili-trigger"
+                onClick={() => setLocationModalOpen(true)}
+              >
+                <MapPin size={16} />
+                <span className={region ? "" : "muted"}>
+                  {region || "Contoh: Bandung, Jawa Barat"}
+                </span>
+              </button>
+            </div>
           </div>
+
+          <LocationSelectorModal
+            isOpen={locationModalOpen}
+            selectedLocation={region}
+            onSelect={(loc) => setRegion(loc)}
+            onClose={() => setLocationModalOpen(false)}
+          />
 
           {error && (
             <p role="alert" className="composer-error">
@@ -232,15 +293,71 @@ function EditProfile({
 }
 
 export function Profile({ profileKey }: { profileKey?: string }) {
-  const { people, user, posts: allPosts, following, setFollowing } = useDemo();
+  const {
+    people,
+    user,
+    posts: allPosts,
+    following,
+    setFollowing,
+    workspace,
+    setWorkspace,
+  } = useDemo();
+  const router = useRouter();
   const posts = allPosts.filter((post) => !post.isDeleted);
   const [tab, setTab] = useState("posts");
+  const [visibility, setVisibility] = useState<"public" | "anonymous">("public");
+  const [profileQuery, setProfileQuery] = useState("");
+  const [profileSearchOpen, setProfileSearchOpen] = useState(false);
+  const [visibilityMenuOpen, setVisibilityMenuOpen] = useState(false);
+  const [createMenuOpen, setCreateMenuOpen] = useState(false);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const [composerMode, setComposerMode] = useState<"post" | "report" | null>(
+    null,
+  );
+  const [mutedByKey, setMutedByKey] = useState<Record<string, boolean>>({});
+  const [blockedByKey, setBlockedByKey] = useState<Record<string, boolean>>({});
+  const [actionNotice, setActionNotice] = useState("");
+  const visibilityMenuRef = useRef<HTMLDivElement>(null);
+  const createMenuRef = useRef<HTMLDivElement>(null);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
   const [relation, setRelation] = useState<"followers" | "following" | null>(
     null,
   );
   const [editing, setEditing] = useState(false);
   const targetKey = profileKey ? decodeURIComponent(profileKey).trim() : "@me";
   const isMe = targetKey === "@me" || targetKey.toLowerCase() === "me";
+
+  useEffect(() => {
+    if (!visibilityMenuOpen && !createMenuOpen && !moreMenuOpen) return;
+    function handlePointerDown(event: MouseEvent) {
+      const target = event.target as Node;
+      if (
+        visibilityMenuRef.current &&
+        !visibilityMenuRef.current.contains(target)
+      ) {
+        setVisibilityMenuOpen(false);
+      }
+      if (createMenuRef.current && !createMenuRef.current.contains(target)) {
+        setCreateMenuOpen(false);
+      }
+      if (moreMenuRef.current && !moreMenuRef.current.contains(target)) {
+        setMoreMenuOpen(false);
+      }
+    }
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setVisibilityMenuOpen(false);
+        setCreateMenuOpen(false);
+        setMoreMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handlePointerDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [visibilityMenuOpen, createMenuOpen, moreMenuOpen]);
 
   const person = isMe
     ? (people.find((p) => p.localKey === user?.localKey) ?? user)
@@ -254,30 +371,174 @@ export function Profile({ profileKey }: { profileKey?: string }) {
       });
 
   const own = isMe || (Boolean(person) && person?.localKey === user?.localKey);
+  const isOfficialAccount =
+    person?.role === "GOVERNMENT" || person?.role === "INTERNAL";
+  const activeTab =
+    tab === "responses" && !isOfficialAccount ? "posts" : tab;
+  const isCommentTab = activeTab === "replies" || activeTab === "responses";
+  const showVisibilityFilter =
+    own &&
+    (activeTab === "posts" ||
+      activeTab === "reports" ||
+      activeTab === "replies");
   const authored = posts.filter(
     (post) => post.authorKey === person?.localKey && (!post.anonymous || own),
   );
+  const publicPostCount = useMemo(
+    () => countPublicPosts(allPosts, person?.localKey),
+    [allPosts, person?.localKey],
+  );
+  const normalizedQuery = profileQuery.trim().toLowerCase();
   const visible =
-    tab === "reposts"
+    (activeTab === "reposts"
       ? own
         ? posts.filter((post) => post.reposted)
         : []
-      : tab === "tagged"
+      : activeTab === "tagged"
         ? posts.filter((post) =>
             post.agencyKeys.includes(person?.localKey ?? ""),
           )
-        : authored.filter(
-            (post) => post.kind === (tab === "reports" ? "report" : "general"),
-          );
+        : activeTab === "posts" || activeTab === "reports"
+          ? authored.filter((post) => {
+              if (
+                post.kind !== (activeTab === "reports" ? "report" : "general")
+              ) {
+                return false;
+              }
+              if (!own) return !post.anonymous;
+              return visibility === "anonymous"
+                ? post.anonymous
+                : !post.anonymous;
+            })
+          : []
+    ).filter((post) => matchesProfilePostQuery(post, normalizedQuery));
+
+  const profileComments = useMemo(() => {
+    if (!person) return [] as Array<{ reply: Reply; post: Post }>;
+    if (activeTab !== "replies" && activeTab !== "responses") return [];
+
+    const items: Array<{ reply: Reply; post: Post }> = [];
+    for (const post of posts) {
+      for (const reply of post.replies) {
+        if (reply.authorKey !== person.localKey) continue;
+        if (!matchesProfileReplyQuery(reply, post, normalizedQuery)) continue;
+        if (activeTab === "responses") {
+          if (isOfficialAccount && reply.is_action_taken) {
+            items.push({ reply, post });
+          }
+        } else {
+          // Balasan tab: all comments authored by this profile (filtered by visibility)
+          const isAnon = Boolean(reply.anonymous) && !reply.is_action_taken;
+          if (!own) {
+            if (isReplyVisibleInProfileSearch(reply, post, person.localKey, false)) {
+              items.push({ reply, post });
+            }
+          } else if (visibility === "anonymous" ? isAnon : !isAnon) {
+            items.push({ reply, post });
+          }
+        }
+      }
+    }
+    return items.sort(
+      (a, b) => (b.reply.postedAt ?? 0) - (a.reply.postedAt ?? 0),
+    );
+  }, [
+    person,
+    posts,
+    activeTab,
+    isOfficialAccount,
+    own,
+    visibility,
+    normalizedQuery,
+  ]);
+
+  function handleApplyProfileQuery(nextRaw: string) {
+    const clean = nextRaw.trim();
+    setProfileQuery(clean);
+    if (!clean || !person) return;
+    const q = clean.toLowerCase();
+
+    const hasMatchIn = (targetTab: string, targetVis: "public" | "anonymous") => {
+      if (targetTab === "posts" || targetTab === "reports") {
+        const expectedKind = targetTab === "reports" ? "report" : "general";
+        return posts.some(
+          (post) =>
+            post.authorKey === person.localKey &&
+            post.kind === expectedKind &&
+            (!post.anonymous || own) &&
+            (targetVis === "anonymous" ? post.anonymous : !post.anonymous) &&
+            matchesProfilePostQuery(post, q),
+        );
+      }
+      if (targetTab === "replies") {
+        return posts.some((post) =>
+          post.replies.some((reply) => {
+            if (reply.authorKey !== person.localKey) return false;
+            if (!isReplyVisibleInProfileSearch(reply, post, person.localKey, own)) {
+              return false;
+            }
+            const isAnon = Boolean(reply.anonymous) && !reply.is_action_taken;
+            if (targetVis === "anonymous" ? !isAnon : isAnon) return false;
+            return matchesProfileReplyQuery(reply, post, q);
+          }),
+        );
+      }
+      return false;
+    };
+
+    const currentVis = own ? visibility : "public";
+    if (hasMatchIn(activeTab, currentVis)) return;
+
+    const candidates: Array<["posts" | "reports" | "replies", "public" | "anonymous"]> = [
+      ["posts", "public"],
+      ["reports", "public"],
+      ["replies", "public"],
+      ...(own
+        ? ([
+            ["posts", "anonymous"],
+            ["reports", "anonymous"],
+            ["replies", "anonymous"],
+          ] as Array<["posts" | "reports" | "replies", "anonymous"]>)
+        : []),
+    ];
+
+    const matchedCandidate = candidates.find(([t, v]) => hasMatchIn(t, v));
+    if (matchedCandidate) {
+      setTab(matchedCandidate[0]);
+      if (own) setVisibility(matchedCandidate[1]);
+    }
+  }
+
+  function openConversationWith(partnerKey: string) {
+    if (!workspace.conversations.some((c) => c.partnerKey === partnerKey)) {
+      setWorkspace((current) => ({
+        ...current,
+        conversations: [
+          {
+            id: "",
+            localKey: partnerKey,
+            partnerKey,
+            unread: false,
+            messages: [],
+          },
+          ...current.conversations,
+        ],
+      }));
+    }
+    router.push(`/messages/${partnerKey}`);
+  }
+
   const tabs = [
     { key: "posts", label: "Postingan" },
     { key: "reports", label: "Laporan" },
+    { key: "replies", label: "Balasan" },
+    ...(isOfficialAccount ? [{ key: "responses", label: "Respon" }] : []),
     { key: "reposts", label: "Repost" },
     { key: "tagged", label: "Ditandai" },
   ];
   return (
     <ProductShell title="Profil" active="profile">
-      <section className="feed-surface">
+      <section className="feed-surface profile-surface">
         {person ? (
           <>
             <header className="profile-header">
@@ -300,39 +561,335 @@ export function Profile({ profileKey }: { profileKey?: string }) {
                 </p>
               )}
               <div className="profile-counts small muted">
-                <button onClick={() => setRelation("followers")}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTab("posts");
+                    setVisibility("public");
+                    setVisibilityMenuOpen(false);
+                  }}
+                >
+                  {publicPostCount} postingan
+                </button>{" "}
+                ·{" "}
+                <button type="button" onClick={() => setRelation("followers")}>
                   {!own && following.includes(person.localKey) ? 1 : 0} pengikut
                 </button>{" "}
                 ·{" "}
-                <button onClick={() => setRelation("following")}>
+                <button type="button" onClick={() => setRelation("following")}>
                   {own ? following.length : 0} mengikuti
                 </button>
               </div>
-              {own ? (
-                <Button variant="secondary" onClick={() => setEditing(true)}>
-                  Edit profil
-                </Button>
-              ) : (
-                <Button
-                  variant={
-                    following.includes(person.localKey)
-                      ? "secondary"
-                      : "primary"
-                  }
-                  onClick={() =>
-                    setFollowing((current) =>
-                      current.includes(person.localKey)
-                        ? current.filter((key) => key !== person.localKey)
-                        : [...current, person.localKey],
-                    )
-                  }
-                >
-                  {following.includes(person.localKey)
-                    ? "Berhenti mengikuti"
-                    : "Ikuti"}
-                </Button>
+              <div className="profile-actions-row">
+                {own ? (
+                  <>
+                    <div className="profile-action-slot" ref={createMenuRef}>
+                      <button
+                        type="button"
+                        className="profile-action-btn profile-action-btn--primary"
+                        aria-haspopup="menu"
+                        aria-expanded={createMenuOpen}
+                        onClick={() => setCreateMenuOpen((prev) => !prev)}
+                      >
+                        <span>Buat</span>
+                        <ChevronDown
+                          size={16}
+                          strokeWidth={2}
+                          className={`profile-filter-chevron ${createMenuOpen ? "is-open" : ""}`}
+                        />
+                      </button>
+
+                      {createMenuOpen && (
+                        <div
+                          className="create-dropdown-popover profile-create-popover"
+                          role="menu"
+                          aria-label="Buat konten"
+                        >
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className="create-dropdown-item"
+                            onClick={() => {
+                              setCreateMenuOpen(false);
+                              setComposerMode("post");
+                            }}
+                          >
+                            <PenSquare
+                              size={17}
+                              strokeWidth={1.8}
+                              className="create-dropdown-icon"
+                            />
+                            <span>Postingan</span>
+                          </button>
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className="create-dropdown-item"
+                            onClick={() => {
+                              setCreateMenuOpen(false);
+                              setComposerMode("report");
+                            }}
+                          >
+                            <Megaphone
+                              size={17}
+                              strokeWidth={1.8}
+                              className="create-dropdown-icon"
+                            />
+                            <span>Lapor</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="profile-action-slot">
+                      <button
+                        type="button"
+                        className="profile-action-btn profile-action-btn--secondary"
+                        onClick={() => setEditing(true)}
+                      >
+                        Edit profil
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="profile-action-slot">
+                      <button
+                        type="button"
+                        className={`profile-action-btn ${
+                          following.includes(person.localKey)
+                            ? "profile-action-btn--secondary"
+                            : "profile-action-btn--primary"
+                        }`}
+                        onClick={() =>
+                          setFollowing((current) =>
+                            current.includes(person.localKey)
+                              ? current.filter((key) => key !== person.localKey)
+                              : [...current, person.localKey],
+                          )
+                        }
+                      >
+                        {following.includes(person.localKey)
+                          ? "Diikuti"
+                          : "Ikuti"}
+                      </button>
+                    </div>
+
+                    <div className="profile-action-slot">
+                      <button
+                        type="button"
+                        className="profile-action-btn profile-action-btn--secondary"
+                        onClick={() => openConversationWith(person.localKey)}
+                      >
+                        Mengobrol
+                      </button>
+                    </div>
+
+                    <div className="profile-more-wrap" ref={moreMenuRef}>
+                      <button
+                        type="button"
+                        className={`profile-more-btn ${moreMenuOpen ? "active" : ""}`}
+                        aria-label="Tindakan pengguna"
+                        aria-haspopup="menu"
+                        aria-expanded={moreMenuOpen}
+                        onClick={() => setMoreMenuOpen((prev) => !prev)}
+                      >
+                        <MoreHorizontal size={20} strokeWidth={2} />
+                      </button>
+
+                      {moreMenuOpen && (
+                        <div
+                          className="profile-filter-menu profile-actions-menu"
+                          role="menu"
+                          aria-label={`Tindakan untuk @${person.username}`}
+                        >
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className="sidebar-account-menu-item"
+                            onClick={async () => {
+                              setMoreMenuOpen(false);
+                              try {
+                                await navigator.clipboard.writeText(
+                                  `${location.origin}/profile/${person.username || person.localKey}`,
+                                );
+                                setActionNotice("Tautan profil disalin.");
+                              } catch {
+                                setActionNotice(
+                                  "Tidak dapat menyalin tautan profil.",
+                                );
+                              }
+                            }}
+                          >
+                            <Link2 size={18} strokeWidth={1.8} />
+                            <span>Salin tautan</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className="sidebar-account-menu-item"
+                            onClick={() => {
+                              const next = !mutedByKey[person.localKey];
+                              setMoreMenuOpen(false);
+                              setMutedByKey((prev) => ({
+                                ...prev,
+                                [person.localKey]: next,
+                              }));
+                              setActionNotice(
+                                next
+                                  ? `@${person.username} dibisukan.`
+                                  : `Bisu @${person.username} dibatalkan.`,
+                              );
+                            }}
+                          >
+                            {mutedByKey[person.localKey] ? (
+                              <Volume2 size={18} strokeWidth={1.8} />
+                            ) : (
+                              <VolumeX size={18} strokeWidth={1.8} />
+                            )}
+                            <span>
+                              {mutedByKey[person.localKey]
+                                ? "Bunyikan akun"
+                                : "Bisukan akun"}
+                            </span>
+                          </button>
+
+                          <div className="sidebar-account-menu-divider" />
+
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className="sidebar-account-menu-item sidebar-account-menu-item--danger"
+                            onClick={() => {
+                              const next = !blockedByKey[person.localKey];
+                              setMoreMenuOpen(false);
+                              setBlockedByKey((prev) => ({
+                                ...prev,
+                                [person.localKey]: next,
+                              }));
+                              setActionNotice(
+                                next
+                                  ? `@${person.username} diblokir.`
+                                  : `Blokir @${person.username} dibuka.`,
+                              );
+                            }}
+                          >
+                            <Ban size={18} strokeWidth={1.8} />
+                            <span>
+                              {blockedByKey[person.localKey]
+                                ? "Buka blokir"
+                                : "Blokir akun"}
+                            </span>
+                          </button>
+
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className="sidebar-account-menu-item sidebar-account-menu-item--danger"
+                            onClick={() => {
+                              setMoreMenuOpen(false);
+                              setActionNotice(
+                                `Laporan akun @${person.username} dicatat.`,
+                              );
+                            }}
+                          >
+                            <AlertCircle size={18} strokeWidth={1.8} />
+                            <span>Laporkan akun</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {actionNotice && (
+                <p role="status" className="small muted">
+                  {actionNotice}
+                </p>
               )}
             </header>
+
+            <div className="profile-controls-bar">
+              <div className="profile-search-trigger-wrap">
+                <SearchTriggerButton
+                  query={profileQuery}
+                  placeholder={`Cari di @${person.username}...`}
+                  className={`profile-search-trigger ${profileQuery.trim() ? "has-clear" : ""}`.trim()}
+                  onClick={() => setProfileSearchOpen(true)}
+                />
+                {profileQuery.trim() && (
+                  <button
+                    type="button"
+                    className="quick-search-clear-btn profile-search-clear-btn"
+                    aria-label="Hapus pencarian"
+                    onClick={() => setProfileQuery("")}
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+
+              {showVisibilityFilter && (
+                <div className="laporan-filter-wrap" ref={visibilityMenuRef}>
+                  <button
+                    type="button"
+                    className={`chat-compose-btn laporan-filter-btn ${visibility !== "public" ? "is-active" : ""}`.trim()}
+                    aria-label={`Filter visibilitas: ${visibility === "public" ? "Publik" : "Anonim"}`}
+                    aria-haspopup="menu"
+                    aria-expanded={visibilityMenuOpen}
+                    title={`Filter: ${visibility === "public" ? "Publik" : "Anonim"}`}
+                    onClick={() => setVisibilityMenuOpen((prev) => !prev)}
+                  >
+                    <SlidersHorizontal size={18} strokeWidth={1.8} />
+                    {visibility !== "public" && (
+                      <span className="laporan-filter-dot" aria-hidden="true" />
+                    )}
+                  </button>
+
+                  {visibilityMenuOpen && (
+                    <div
+                      className="profile-filter-menu laporan-filter-menu"
+                      role="menu"
+                      aria-label="Filter visibilitas konten"
+                    >
+                      <button
+                        type="button"
+                        role="menuitemradio"
+                        aria-checked={visibility === "public"}
+                        className={`profile-filter-option ${visibility === "public" ? "is-selected" : ""}`}
+                        onClick={() => {
+                          setVisibility("public");
+                          setVisibilityMenuOpen(false);
+                        }}
+                      >
+                        <span>Publik</span>
+                        {visibility === "public" && (
+                          <Check size={16} strokeWidth={2.2} />
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        role="menuitemradio"
+                        aria-checked={visibility === "anonymous"}
+                        className={`profile-filter-option ${visibility === "anonymous" ? "is-selected" : ""}`}
+                        onClick={() => {
+                          setVisibility("anonymous");
+                          setVisibilityMenuOpen(false);
+                        }}
+                      >
+                        <span>Anonim</span>
+                        {visibility === "anonymous" && (
+                          <Check size={16} strokeWidth={2.2} />
+                        )}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
             <div
               className="profile-tabs"
               role="tablist"
@@ -341,34 +898,168 @@ export function Profile({ profileKey }: { profileKey?: string }) {
               {tabs.map((item) => (
                 <button
                   role="tab"
-                  aria-selected={tab === item.key}
+                  aria-selected={activeTab === item.key}
                   key={item.key}
-                  onClick={() => setTab(item.key)}
+                  onClick={() => {
+                    setTab(item.key);
+                    setVisibilityMenuOpen(false);
+                  }}
                 >
                   {item.label}
                 </button>
               ))}
             </div>
-            {visible.map((post) => (
-              <div key={post.localKey}>
-                {own &&
-                  post.anonymous &&
-                  post.authorKey === person.localKey && (
-                    <p className="private-report">
-                      Laporan anonim · Hanya terlihat oleh Anda di profil ini
-                    </p>
-                  )}
-                <PostCard post={post} />
+
+            {profileQuery && (
+              <div className="explore-feed-header">
+                <span className="explore-feed-title">
+                  Hasil untuk &ldquo;{profileQuery}&rdquo; (
+                  {isCommentTab ? profileComments.length : visible.length})
+                </span>
+                <button
+                  type="button"
+                  className="profile-search-reset-btn"
+                  onClick={() => setProfileQuery("")}
+                >
+                  Tampilkan semua
+                </button>
               </div>
-            ))}
-            {!visible.length && (
-              <div className="empty-state">
-                <h2>
-                  Belum ada{" "}
-                  {tabs.find((item) => item.key === tab)?.label.toLowerCase()}
-                </h2>
-                <p>Konten yang tersedia akan muncul di sini.</p>
-              </div>
+            )}
+            {isCommentTab ? (
+              <>
+                {profileComments.map(({ reply, post }) => {
+                  const isReplyAnon =
+                    Boolean(reply.anonymous) && !reply.is_action_taken;
+                  const displayName = isReplyAnon ? "Anonim" : person.name;
+                  const badgeRole = isReplyAnon
+                    ? undefined
+                    : (reply.actionRole ??
+                      (isOfficialAccount ? person.role : undefined));
+                  const postHeadline =
+                    post.content.split(/\r?\n+/)[0]?.trim() || "Postingan";
+                  const upCount =
+                    (reply.upvotesCount ?? 0) + (reply.vote === "UP" ? 1 : 0);
+                  const downCount =
+                    (reply.downvotesCount ?? 0) +
+                    (reply.vote === "DOWN" ? 1 : 0);
+
+                  return (
+                    <article
+                      key={`${post.localKey}-${reply.localKey}`}
+                      className="post-card profile-reply-card"
+                    >
+                      <div className="post-avatar-col">
+                        <Avatar
+                          name={displayName}
+                          src={isReplyAnon ? undefined : person.image}
+                        />
+                      </div>
+                      <header className="post-meta">
+                        <div>
+                          <div className="post-meta-heading">
+                            <span className="post-author-name">
+                              {displayName}
+                              <VerifiedBadge role={badgeRole} size={15} />
+                            </span>
+                            {!isReplyAnon && (
+                              <span className="post-author-username">
+                                @{person.username}
+                              </span>
+                            )}
+                            <span className="post-meta-dot">·</span>
+                            <span className="post-meta-time">
+                              {formatShortTime(reply.postedAt)}
+                            </span>
+                          </div>
+                        </div>
+                        {reply.is_action_taken && (
+                          <span className="comment-action-marker">
+                            Tindak Lanjut
+                          </span>
+                        )}
+                      </header>
+                      <div className="profile-reply-context">
+                        {reply.is_action_taken
+                          ? "Merespon laporan: "
+                          : "Membalas: "}
+                        <Link href={`/posts/${post.localKey}`}>
+                          {postHeadline}
+                        </Link>
+                      </div>
+                      {reply.content && (
+                        <div className="post-content post-body-text">
+                          <p>{renderWithMentions(reply.content, people)}</p>
+                        </div>
+                      )}
+                      {reply.location && (
+                        <p className="post-meta-location">
+                          <MapPin size={12} /> {reply.location}
+                        </p>
+                      )}
+                      {reply.images && reply.images.length > 0 && (
+                        <MediaGallery
+                          media={reply.images}
+                          altPrefix="Lampiran balasan"
+                        />
+                      )}
+                      <footer className="profile-reply-footer">
+                        <span className="profile-reply-stat">
+                          <ArrowBigUp size={16} strokeWidth={1.8} />
+                          {upCount}
+                        </span>
+                        <span className="profile-reply-stat">
+                          <ArrowBigDown size={16} strokeWidth={1.8} />
+                          {downCount}
+                        </span>
+                        <Link
+                          href={`/posts/${post.localKey}#comment-${reply.localKey}`}
+                          className="profile-reply-thread-link"
+                        >
+                          Lihat di postingan →
+                        </Link>
+                      </footer>
+                    </article>
+                  );
+                })}
+                {!profileComments.length && (
+                  <div className="empty-state">
+                    <h2>
+                      Belum ada{" "}
+                      {tabs
+                        .find((item) => item.key === activeTab)
+                        ?.label.toLowerCase()}
+                      {showVisibilityFilter
+                        ? visibility === "anonymous"
+                          ? " anonim"
+                          : " publik"
+                        : ""}
+                    </h2>
+                    <p>Konten yang tersedia akan muncul di sini.</p>
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                {visible.map((post) => (
+                  <PostCard key={post.localKey} post={post} />
+                ))}
+                {!visible.length && (
+                  <div className="empty-state">
+                    <h2>
+                      Belum ada{" "}
+                      {tabs
+                        .find((item) => item.key === activeTab)
+                        ?.label.toLowerCase()}
+                      {showVisibilityFilter
+                        ? visibility === "anonymous"
+                          ? " anonim"
+                          : " publik"
+                        : ""}
+                    </h2>
+                    <p>Konten yang tersedia akan muncul di sini.</p>
+                  </div>
+                )}
+              </>
             )}
           </>
         ) : (
@@ -410,6 +1101,23 @@ export function Profile({ profileKey }: { profileKey?: string }) {
       )}
       {editing && person && own && (
         <EditProfile person={person} onClose={() => setEditing(false)} />
+      )}
+      {composerMode && own && (
+        <Composer
+          initialMode={composerMode}
+          onClose={() => setComposerMode(null)}
+        />
+      )}
+      {person && (
+        <ProfileSearchModal
+          isOpen={profileSearchOpen}
+          onClose={() => setProfileSearchOpen(false)}
+          person={person}
+          own={own}
+          posts={allPosts}
+          initialQuery={profileQuery}
+          onApplyQuery={handleApplyProfileQuery}
+        />
       )}
     </ProductShell>
   );

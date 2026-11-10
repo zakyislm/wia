@@ -61,12 +61,18 @@ export async function seedDummyData() {
 
   // 2. Ensure macro topics exist
   const defaultTopics = [
-    { id: "top_bencana", name: "BencanaNasional", slug: "bencana-nasional", isTrending: true, createdAt: now },
     { id: "top_infra", name: "Infrastruktur", slug: "infrastruktur", isTrending: true, createdAt: now },
-    { id: "top_lingkungan", name: "LingkunganHidup", slug: "lingkungan-hidup", isTrending: true, createdAt: now },
-    { id: "top_pelayanan", name: "PelayananPublik", slug: "pelayanan-publik", isTrending: false, createdAt: now },
+    { id: "top_transportasi", name: "Transportasi", slug: "transportasi", isTrending: true, createdAt: now },
+    { id: "top_lingkungan", name: "Lingkungan & Kebersihan", slug: "lingkungan-kebersihan", isTrending: true, createdAt: now },
     { id: "top_kesehatan", name: "Kesehatan", slug: "kesehatan", isTrending: false, createdAt: now },
     { id: "top_pendidikan", name: "Pendidikan", slug: "pendidikan", isTrending: false, createdAt: now },
+    { id: "top_keamanan", name: "Keamanan & Ketertiban", slug: "keamanan-ketertiban", isTrending: false, createdAt: now },
+    { id: "top_bencana", name: "Bencana & Darurat", slug: "bencana-darurat", isTrending: false, createdAt: now },
+    { id: "top_layanan", name: "Layanan Publik", slug: "layanan-publik", isTrending: false, createdAt: now },
+    { id: "top_sosial", name: "Sosial & Warga", slug: "sosial-warga", isTrending: false, createdAt: now },
+    { id: "top_tatakelola", name: "Tata Kelola & Hukum", slug: "tata-kelola-hukum", isTrending: false, createdAt: now },
+    { id: "top_utilitas", name: "Air & Utilitas", slug: "air-utilitas", isTrending: false, createdAt: now },
+    { id: "top_komunitas", name: "Komunitas", slug: "komunitas", isTrending: false, createdAt: now },
   ];
 
   for (const t of defaultTopics) {

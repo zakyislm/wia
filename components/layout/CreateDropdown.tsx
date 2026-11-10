@@ -83,7 +83,11 @@ export function CreateDropdown({
         aria-expanded={isOpen}
       >
         <span className="create-dropdown-label">
-          <Plus size={18} strokeWidth={2.4} />
+          <Plus
+            size={24}
+            strokeWidth={2}
+            className="create-dropdown-plus"
+          />
           <span>Buat</span>
         </span>
         <ChevronDown
