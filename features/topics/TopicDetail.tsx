@@ -5,6 +5,12 @@ import { useDemo } from "@/features/auth/DemoProvider";
 import { ProductShell } from "@/components/layout/ProductShell";
 import { PostCard } from "@/features/posts/PostCard";
 import {
+  LazyLoadSentinel,
+  useLazySlice,
+  useSubtabTransition,
+} from "@/components/ui/LazyFeed";
+import { SkeletonPostList } from "@/components/ui/Skeleton";
+import {
   ExploreTopicsBar,
   ExploreSearchBar,
 } from "@/features/explore/ExploreChrome";
@@ -105,6 +111,19 @@ export function TopicDetail({ slug }: { slug: string }) {
 
   const topicName = findTopicNameBySlug(cleanSlug);
 
+  const {
+    visibleItems: visiblePosts,
+    hasMore,
+    isLoadingMore,
+    sentinelRef,
+  } = useLazySlice(matchingPosts, {
+    initialCount: 4,
+    batchSize: 4,
+    resetKey: `${cleanSlug}:${subtab}`,
+  });
+  const { isSubtabLoading, triggerSubtabSkeleton } =
+    useSubtabTransition(subtab);
+
   return (
     <ProductShell
       active="explore"
@@ -128,6 +147,7 @@ export function TopicDetail({ slug }: { slug: string }) {
               role="tab"
               aria-selected={subtab === tab.id}
               onClick={() => {
+                triggerSubtabSkeleton(tab.id);
                 setSubtab(tab.id);
                 if (tab.id === "terbaru") {
                   setNowMs(Date.now());
@@ -144,15 +164,26 @@ export function TopicDetail({ slug }: { slug: string }) {
           className="explore-feed-section"
           aria-label={`Postingan topik ${topicName}`}
         >
-          {matchingPosts.map((post) => (
-            <PostCard key={post.localKey} post={post} />
-          ))}
+          {isSubtabLoading ? (
+            <SkeletonPostList count={3} />
+          ) : (
+            <>
+              {visiblePosts.map((post) => (
+                <PostCard key={post.localKey} post={post} />
+              ))}
+              <LazyLoadSentinel
+                hasMore={hasMore}
+                isLoadingMore={isLoadingMore}
+                sentinelRef={sentinelRef}
+              />
 
-          {matchingPosts.length === 0 && (
-            <div className="empty-state">
-              <h2>Belum ada postingan</h2>
-              <p>Belum ada laporan atau diskusi untuk topik {topicName}.</p>
-            </div>
+              {matchingPosts.length === 0 && (
+                <div className="empty-state">
+                  <h2>Belum ada postingan</h2>
+                  <p>Belum ada laporan atau diskusi untuk topik {topicName}.</p>
+                </div>
+              )}
+            </>
           )}
         </section>
       </section>

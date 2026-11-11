@@ -127,7 +127,7 @@ export function ExploreTopicsBar({ activeSlug }: { activeSlug?: string }) {
           onDragStart={(e) => e.preventDefault()}
           onClick={() => handlePillClick("/explore")}
         >
-          Explore
+          Jelajah
         </button>
         {defaultTopics.map((topic) => (
           <button

@@ -17,14 +17,21 @@ export function PostDetail({
   const post = posts.find(
     (item) => item.localKey === postKey && !item.isDeleted,
   );
+  const backHref = branchKey ? `/posts/${postKey}` : "/home";
+  const backLabel = branchKey ? "Kembali ke postingan" : "Kembali ke beranda";
   return (
-    <ProductShell hideHeader>
+    <ProductShell
+      hideHeader
+      title="Post"
+      backHref={backHref}
+      backLabel={backLabel}
+    >
       <section className="feed-surface post-detail-surface">
         <Link
-          href={branchKey ? `/posts/${postKey}` : "/home"}
+          href={backHref}
           className="post-detail-back-btn"
-          aria-label={branchKey ? "Kembali ke postingan" : "Kembali ke beranda"}
-          title={branchKey ? "Kembali ke postingan" : "Kembali ke beranda"}
+          aria-label={backLabel}
+          title={backLabel}
         >
           <ArrowLeft size={18} strokeWidth={2} />
         </Link>

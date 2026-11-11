@@ -1,5 +1,17 @@
 import type { Resolution } from "@/types/models";
 
+export const ACTION_VALIDATION_MIN_VOTES = 40;
+export const ACTION_VALIDATION_MIN_APPROVAL_PERCENT = 83;
+
+export function shouldAutoCloseAction(
+  upvotes: number,
+  downvotes: number,
+): boolean {
+  const total = upvotes + downvotes;
+  if (total < ACTION_VALIDATION_MIN_VOTES) return false;
+  return upvotes * 100 >= ACTION_VALIDATION_MIN_APPROVAL_PERCENT * total;
+}
+
 export function resolutionResult(resolution: Resolution, now = Date.now()) {
   if (now < resolution.deadline) return "active";
   const total = resolution.agree + resolution.disagree;

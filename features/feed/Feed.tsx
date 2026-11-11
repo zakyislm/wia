@@ -6,10 +6,16 @@ import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
 import { Composer } from "@/features/posts/Composer";
 import { PostCard } from "@/features/posts/PostCard";
+import {
+  LazyLoadSentinel,
+  useLazySlice,
+  useSubtabTransition,
+} from "@/components/ui/LazyFeed";
+import { SkeletonPostList } from "@/components/ui/Skeleton";
 import { ChevronDown, Check } from "lucide-react";
 
 export function Feed() {
-  const { posts, user, following, feedScroll } = useDemo();
+  const { posts, user, following, feedScroll, workspace } = useDemo();
   useEffect(() => {
     window.scrollTo(0, feedScroll.current);
     const save = () => {
@@ -43,7 +49,41 @@ export function Feed() {
           (post) => !post.anonymous && following.includes(post.authorKey),
         )
       : posts;
-  const readable = visible.filter((post) => !post.hidden && !post.isDeleted);
+  const readable = visible.filter((post) => {
+    if (post.hidden || post.isDeleted) return false;
+    if (
+      !post.anonymous &&
+      (workspace.mutedUsers.includes(post.authorKey) ||
+        workspace.blockedUsers.includes(post.authorKey))
+    ) {
+      return false;
+    }
+    if (workspace.mutedWords.length > 0) {
+      const lower = post.content.toLowerCase();
+      if (workspace.mutedWords.some((word) => lower.includes(word.toLowerCase()))) {
+        return false;
+      }
+    }
+    return true;
+  });
+
+  const {
+    visibleItems: visiblePosts,
+    hasMore,
+    isLoadingMore,
+    sentinelRef,
+  } = useLazySlice(readable, {
+    initialCount: 4,
+    batchSize: 4,
+    resetKey: tab,
+  });
+  const { isSubtabLoading, triggerSubtabSkeleton } = useSubtabTransition(tab);
+
+  function selectTab(nextTab: "foryou" | "following") {
+    triggerSubtabSkeleton(nextTab);
+    setTab(nextTab);
+    setTabDropdownOpen(false);
+  }
 
   return (
     <ProductShell active="home" hideHeader>
@@ -67,7 +107,7 @@ export function Feed() {
             className="substack-filter-btn"
             onClick={() => setTabDropdownOpen((prev) => !prev)}
             aria-expanded={tabDropdownOpen}
-            aria-label="Filter feed"
+            aria-label="Filter beranda"
           >
             <span>{tab === "foryou" ? "Untuk Kamu" : "Mengikuti"}</span>
             <ChevronDown
@@ -81,10 +121,7 @@ export function Feed() {
               <button
                 type="button"
                 className={tab === "foryou" ? "active" : ""}
-                onClick={() => {
-                  setTab("foryou");
-                  setTabDropdownOpen(false);
-                }}
+                onClick={() => selectTab("foryou")}
               >
                 <span>Untuk Kamu</span>
                 {tab === "foryou" && <Check size={13} />}
@@ -92,10 +129,7 @@ export function Feed() {
               <button
                 type="button"
                 className={tab === "following" ? "active" : ""}
-                onClick={() => {
-                  setTab("following");
-                  setTabDropdownOpen(false);
-                }}
+                onClick={() => selectTab("following")}
               >
                 <span>Mengikuti</span>
                 {tab === "following" && <Check size={13} />}
@@ -104,19 +138,30 @@ export function Feed() {
           )}
         </div>
 
-        {readable.map((post) => (
-          <PostCard key={post.localKey} post={post} />
-        ))}
-        {!readable.length && (
-          <div className="empty-state">
-            <h2>Belum ada yang kamu ikuti</h2>
-            <p>
-              Ikuti akun dari rekomendasi untuk menemukan cerita mereka di sini.
-            </p>
-            <Button variant="secondary" onClick={() => setTab("foryou")}>
-              Jelajahi Untuk Kamu
-            </Button>
-          </div>
+        {isSubtabLoading ? (
+          <SkeletonPostList count={3} />
+        ) : (
+          <>
+            {visiblePosts.map((post) => (
+              <PostCard key={post.localKey} post={post} />
+            ))}
+            <LazyLoadSentinel
+              hasMore={hasMore}
+              isLoadingMore={isLoadingMore}
+              sentinelRef={sentinelRef}
+            />
+            {!readable.length && (
+              <div className="empty-state">
+                <h2>Belum ada yang kamu ikuti</h2>
+                <p>
+                  Ikuti akun dari rekomendasi untuk menemukan cerita mereka di sini.
+                </p>
+                <Button variant="secondary" onClick={() => selectTab("foryou")}>
+                  Jelajahi Untuk Kamu
+                </Button>
+              </div>
+            )}
+          </>
         )}
       </section>
       {composer && <Composer initialMode="post" onClose={() => setComposer(false)} />}

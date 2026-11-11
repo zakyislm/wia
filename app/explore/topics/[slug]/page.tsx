@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { TopicDetail } from "@/features/topics/TopicDetail";
+import { PageSkeleton } from "@/components/ui/Skeleton";
 
 async function Content({
   params,
@@ -16,7 +17,7 @@ export default function ExploreTopicPage({
   params: Promise<{ slug: string }>;
 }) {
   return (
-    <Suspense fallback={<p role="status">Memuat topik…</p>}>
+    <Suspense fallback={<PageSkeleton variant="directory" />}>
       <Content params={params} />
     </Suspense>
   );

@@ -58,7 +58,7 @@ export function EmojiSelectorModal({
             <input
               type="text"
               autoFocus
-              placeholder="Search Emoji..."
+              placeholder="Cari emoji..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="selector-search-input"

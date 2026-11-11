@@ -11,6 +11,7 @@ import {
   Upload,
   CheckCircle2,
   XCircle,
+  Clock3,
   Timer,
   MapPin,
   BadgeCheck,
@@ -119,9 +120,8 @@ export function PostCard({
   post: Post;
   detail?: boolean;
 }) {
-  const { people, updatePost } = useDemo();
+  const { people, updatePost, showToast } = useDemo();
   const router = useRouter();
-  const [message, setMessage] = useState("");
   const [timeAgo, setTimeAgo] = useState(() => formatTime(post.postedAt));
   useEffect(() => {
     setTimeAgo(formatTime(post.postedAt, Date.now()));
@@ -204,7 +204,7 @@ export function PostCard({
           <div className="post-meta-heading">
             <span className="post-author-name">
               {post.anonymous ? (
-                "Anonim"
+                <span className="post-author-label">Anonim</span>
               ) : (
                 <UserHoverCard person={author}>
                   <Link href={`/profile/${author.username || author.localKey}`}>
@@ -214,19 +214,9 @@ export function PostCard({
               )}
               {!post.anonymous && <VerifiedBadge role={author.role} size={15} />}
             </span>
-            {!post.anonymous && author.username && (
-              <UserHoverCard person={author}>
-                <Link
-                  href={`/profile/${author.username || author.localKey}`}
-                  className="post-author-username"
-                >
-                  @{author.username}
-                </Link>
-              </UserHoverCard>
-            )}
             {isReport ? (
               <>
-                <span className="post-meta-separator">in</span>
+                <span className="post-meta-separator">di</span>
                 <span className="post-topic-name">
                   <Link
                     href={`/explore/topics/${post.topicSlug || (post.category || "umum").toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
@@ -249,6 +239,24 @@ export function PostCard({
         {isReport && reportStatus && (
           <span
             className={`report-status-badge report-status-badge--${reportStatus}`}
+            aria-label={
+              reportStatus === "completed"
+                ? "Status: Selesai"
+                : reportStatus === "closed_internal"
+                  ? "Status: Ditutup"
+                  : reportStatus === "in_progress"
+                    ? "Status: Diproses"
+                    : "Status: Menunggu"
+            }
+            title={
+              reportStatus === "completed"
+                ? "Selesai"
+                : reportStatus === "closed_internal"
+                  ? "Ditutup"
+                  : reportStatus === "in_progress"
+                    ? "Diproses"
+                    : "Menunggu"
+            }
           >
             {reportStatus === "completed" ? (
               <>
@@ -267,7 +275,7 @@ export function PostCard({
               </>
             ) : (
               <>
-                <Timer size={13} strokeWidth={2} />
+                <Clock3 size={13} strokeWidth={2} />
                 <span>Menunggu</span>
               </>
             )}
@@ -324,7 +332,7 @@ export function PostCard({
       <footer className="post-actions">
         <Button
           variant="ghost"
-          aria-label="Upvote"
+          aria-label="Dukung naik"
           aria-pressed={post.vote === "UP"}
           onClick={() => vote("UP")}
         >
@@ -336,7 +344,7 @@ export function PostCard({
         </Button>
         <Button
           variant="ghost"
-          aria-label="Downvote"
+          aria-label="Dukung turun"
           aria-pressed={post.vote === "DOWN"}
           onClick={() => vote("DOWN")}
         >
@@ -352,7 +360,7 @@ export function PostCard({
         </Link>
         <Button
           variant="ghost"
-          aria-label="Repost"
+          aria-label="Bagikan ulang"
           aria-pressed={post.reposted}
           onClick={() =>
             updatePost(post.localKey, (current) => ({
@@ -369,10 +377,11 @@ export function PostCard({
           onClick={async () => {
             try {
               await navigator.clipboard.writeText(`${location.origin}${href}`);
-              setMessage("Tautan disalin.");
+              showToast("Tautan disalin.", "success");
             } catch {
-              setMessage(
+              showToast(
                 "Tautan tidak dapat disalin. Salin alamat dari halaman detail.",
+                "error",
               );
             }
           }}
@@ -380,11 +389,6 @@ export function PostCard({
           <Upload size={18} strokeWidth={1.8} />
         </Button>
       </footer>
-      {message && (
-        <p role="status" className="small muted">
-          {message}
-        </p>
-      )}
     </article>
   );
 }

@@ -8,7 +8,6 @@ import {
   ChevronDown,
   X,
 } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { Dialog } from "@/components/ui/Dialog";
 import { Avatar } from "@/components/ui/Avatar";
 import {
@@ -42,8 +41,7 @@ interface ComposerProps {
 }
 
 export function Composer({ onClose, initialMode = "report" }: ComposerProps) {
-  const { user, people, setPosts } = useDemo();
-  const router = useRouter();
+  const { user, people, setPosts, workspace, showToast } = useDemo();
 
   // Mode: "post" or "report"
   const [mode, setMode] = useState<"post" | "report">(initialMode);
@@ -59,13 +57,16 @@ export function Composer({ onClose, initialMode = "report" }: ComposerProps) {
   const [location, setLocation] = useState("");
   const [tags, setTags] = useState<string[]>([]);
   const [images, setImages] = useState<string[]>([]);
-  const [isAnonymous, setIsAnonymous] = useState(false);
+  const [isAnonymous, setIsAnonymous] = useState(
+    () => initialMode === "report" && workspace.privacyDefaultAnonymous,
+  );
   const [activeField, setActiveField] = useState<"title" | "content" | null>(
     initialMode === "report" ? "title" : "content",
   );
   const [shakeField, setShakeField] = useState<"title" | "content" | null>(null);
   const [error, setError] = useState("");
   const [draftCount, setDraftCount] = useState(0);
+  const [confirmClose, setConfirmClose] = useState(false);
 
   // Selector modals
   const [showTopicModal, setShowTopicModal] = useState(false);
@@ -77,6 +78,16 @@ export function Composer({ onClose, initialMode = "report" }: ComposerProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const urls = useRef<string[]>([]);
   const published = useRef(false);
+  const baselineRef = useRef({
+    mode: initialMode,
+    title: "",
+    content: "",
+    topicId: null as string | null,
+    location: "",
+    tagsKey: "",
+    imagesKey: "",
+    anonymous: initialMode === "report" && workspace.privacyDefaultAnonymous,
+  });
 
   // Auto-resize report title textarea as it wraps (capped at max-height via CSS)
   useEffect(() => {
@@ -85,6 +96,17 @@ export function Composer({ onClose, initialMode = "report" }: ComposerProps) {
     el.style.height = "auto";
     el.style.height = `${Math.min(el.scrollHeight, 68)}px`;
   }, [title, mode, view]);
+
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    if (images.length > 0) {
+      el.style.height = "auto";
+      el.style.height = `${Math.min(el.scrollHeight, 180)}px`;
+    } else {
+      el.style.height = "";
+    }
+  }, [content, images.length, view]);
 
   // Update draft count on mount and view changes
   useEffect(() => {
@@ -102,57 +124,34 @@ export function Composer({ onClose, initialMode = "report" }: ComposerProps) {
     [],
   );
 
-  // Autosave whenever content changes (debounced 600ms)
-  useEffect(() => {
-    const hasData =
-      title.trim() ||
-      content.trim() ||
-      location.trim() ||
-      selectedTopic ||
-      tags.length > 0;
-
-    if (!hasData) return;
-
-    const timer = setTimeout(() => {
-      saveDraft({
-        id: currentDraftId,
-        mode,
-        title,
-        content,
-        topic: selectedTopic,
-        location,
-        tags,
-        images,
-        anonymous: isAnonymous,
-        updatedAt: Date.now(),
-      });
-      setDraftCount(loadDrafts().length);
-    }, 600);
-
-    return () => clearTimeout(timer);
-  }, [
-    currentDraftId,
-    mode,
-    title,
-    content,
-    selectedTopic,
-    location,
-    tags,
-    images,
-    isAnonymous,
-  ]);
-
   // Handle selecting a draft from DraftsView
   const handleSelectDraft = useCallback((draft: ComposerDraft) => {
+    const nextAnon = Boolean(draft.anonymous);
+    const nextTitle = draft.title || "";
+    const nextContent = draft.content || "";
+    const nextTopic = draft.topic || null;
+    const nextLocation = draft.location || "";
+    const nextTags = draft.tags || [];
+    const nextImages = draft.images || [];
     setCurrentDraftId(draft.id);
     setMode(draft.mode);
-    setTitle(draft.title || "");
-    setContent(draft.content || "");
-    setSelectedTopic(draft.topic || null);
-    setLocation(draft.location || "");
-    setTags(draft.tags || []);
-    setImages(draft.images || []);
-    setIsAnonymous(Boolean(draft.anonymous));
+    setTitle(nextTitle);
+    setContent(nextContent);
+    setSelectedTopic(nextTopic);
+    setLocation(nextLocation);
+    setTags(nextTags);
+    setImages(nextImages);
+    setIsAnonymous(nextAnon);
+    baselineRef.current = {
+      mode: draft.mode,
+      title: nextTitle,
+      content: nextContent,
+      topicId: nextTopic?.id ?? null,
+      location: nextLocation,
+      tagsKey: nextTags.join("|"),
+      imagesKey: nextImages.join("|"),
+      anonymous: nextAnon,
+    };
     setError("");
     setView("editor");
   }, []);
@@ -167,9 +166,19 @@ export function Composer({ onClose, initialMode = "report" }: ComposerProps) {
     setTags([]);
     setImages([]);
     setIsAnonymous(false);
+    baselineRef.current = {
+      mode,
+      title: "",
+      content: "",
+      topicId: null,
+      location: "",
+      tagsKey: "",
+      imagesKey: "",
+      anonymous: false,
+    };
     setError("");
     setView("editor");
-  }, []);
+  }, [mode]);
 
   const shakeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -301,8 +310,68 @@ export function Composer({ onClose, initialMode = "report" }: ComposerProps) {
     setPosts((current) => [newPost, ...current]);
     published.current = true;
     deleteDraft(currentDraftId);
+    showToast(
+      mode === "report"
+        ? "Laporan berhasil dipublikasikan."
+        : "Postingan berhasil dipublikasikan.",
+      "success",
+    );
     onClose();
-    router.push("/home");
+  }
+
+  function hasUnsavedChanges(): boolean {
+    const base = baselineRef.current;
+    const hasContent = Boolean(
+      title.trim() ||
+        content.trim() ||
+        location.trim() ||
+        selectedTopic ||
+        tags.length > 0 ||
+        images.length > 0,
+    );
+    if (!hasContent) return false;
+    return (
+      mode !== base.mode ||
+      title !== base.title ||
+      content !== base.content ||
+      (selectedTopic?.id ?? null) !== base.topicId ||
+      location !== base.location ||
+      tags.join("|") !== base.tagsKey ||
+      images.join("|") !== base.imagesKey ||
+      isAnonymous !== base.anonymous
+    );
+  }
+
+  function handleRequestClose() {
+    if (hasUnsavedChanges()) {
+      setConfirmClose(true);
+      return;
+    }
+    onClose();
+  }
+
+  function handleSaveDraftAndClose() {
+    saveDraft({
+      id: currentDraftId,
+      mode,
+      title,
+      content,
+      topic: selectedTopic,
+      location,
+      tags,
+      images,
+      anonymous: isAnonymous,
+      updatedAt: Date.now(),
+    });
+    published.current = true;
+    setConfirmClose(false);
+    showToast("Draf disimpan.", "success");
+    onClose();
+  }
+
+  function handleDiscardAndClose() {
+    setConfirmClose(false);
+    onClose();
   }
 
   // Can post check
@@ -347,7 +416,7 @@ export function Composer({ onClose, initialMode = "report" }: ComposerProps) {
     <>
       <Dialog
         title={mode === "report" ? "Lapor Warga" : "Buat Postingan"}
-        onClose={onClose}
+        onClose={handleRequestClose}
         hideHeader
         className={`composer-dialog-container ${view === "drafts" ? "composer-dialog-container--drafts" : ""} ${view === "editor" && images.length > 0 ? "composer-dialog-container--has-media" : ""}`.trim()}
       >
@@ -405,7 +474,7 @@ export function Composer({ onClose, initialMode = "report" }: ComposerProps) {
                         className="composer-drafts-btn"
                         onClick={() => setView("drafts")}
                       >
-                        Drafts {draftCount > 0 ? `(${draftCount})` : ""}
+                        Draf {draftCount > 0 ? `(${draftCount})` : ""}
                       </button>
                     </div>
 
@@ -477,8 +546,8 @@ export function Composer({ onClose, initialMode = "report" }: ComposerProps) {
                         className={`composer-textarea ${shakeField === "content" ? "is-shaking" : ""}`}
                         placeholder={
                           mode === "report"
-                            ? "Jelaskan permasalahan atau aduan warga... (ketik # untuk tag atau @ untuk mention)"
-                            : "Ada cerita apa hari ini? (ketik # untuk tag)"
+                            ? "Ceritakan kendala warga dengan jelas... (ketik # untuk tagar atau @ untuk sebut akun)"
+                            : "Ada cerita apa hari ini? (ketik # untuk tagar)"
                         }
                         value={content}
                         onPaste={handlePasteMedia}
@@ -516,7 +585,7 @@ export function Composer({ onClose, initialMode = "report" }: ComposerProps) {
                             triggerShake("content");
                           }
                         }}
-                        rows={4}
+                        rows={images.length > 0 ? 1 : 4}
                       />
 
                       {/* Active Chips (Location) */}
@@ -688,7 +757,7 @@ export function Composer({ onClose, initialMode = "report" }: ComposerProps) {
                     <button
                       type="button"
                       className="composer-cancel-btn"
-                      onClick={onClose}
+                      onClick={handleRequestClose}
                     >
                       Batal
                     </button>
@@ -721,6 +790,44 @@ export function Composer({ onClose, initialMode = "report" }: ComposerProps) {
           </div>
         </div>
       </Dialog>
+
+      {confirmClose && (
+        <Dialog
+          title="Simpan ke draf?"
+          onClose={() => setConfirmClose(false)}
+          className="composer-confirm-dialog"
+        >
+          <div className="composer-confirm-body">
+            <p>
+              Tulisan ini belum dipublikasikan. Simpan sebagai draf sebelum
+              menutup?
+            </p>
+            <div className="composer-confirm-actions">
+              <button
+                type="button"
+                className="composer-cancel-btn"
+                onClick={() => setConfirmClose(false)}
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                className="settings-danger-btn"
+                onClick={handleDiscardAndClose}
+              >
+                Buang
+              </button>
+              <button
+                type="button"
+                className="composer-post-btn"
+                onClick={handleSaveDraftAndClose}
+              >
+                Simpan
+              </button>
+            </div>
+          </div>
+        </Dialog>
+      )}
 
       {/* Sub-selector modals */}
       <TopicSelectorModal

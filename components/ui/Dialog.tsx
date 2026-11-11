@@ -108,6 +108,7 @@ export function Dialog({
       aria-labelledby="dialog-title"
       onCancel={(event) => {
         event.preventDefault();
+        event.stopPropagation();
         onClose();
       }}
       onPointerDown={(event) => {

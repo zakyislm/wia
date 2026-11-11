@@ -6,12 +6,12 @@ export function Button({
   type = "button",
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "primary" | "secondary" | "ghost" | "danger";
+  variant?: "primary" | "secondary" | "subtle" | "text" | "ghost" | "danger";
 }) {
   return (
     <button
       type={type}
-      className={`button button--${variant} ${className}`}
+      className={`button button--${variant} ${className}`.trim()}
       {...props}
     />
   );

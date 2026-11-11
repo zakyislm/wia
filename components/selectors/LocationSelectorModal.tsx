@@ -166,7 +166,7 @@ export function LocationSelectorModal({
             onClick={handleUseCurrentLocation}
           >
             <LocateFixed size={16} />
-            <span>{locating ? "Mendeteksi lokasi..." : "Use your location"}</span>
+            <span>{locating ? "Mendeteksi lokasi..." : "Pakai lokasimu sekarang"}</span>
           </button>
         </div>
 

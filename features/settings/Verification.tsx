@@ -5,7 +5,7 @@ import { useDemo } from "@/features/auth/DemoProvider";
 import { ProductShell } from "@/components/layout/ProductShell";
 import { Button } from "@/components/ui/Button";
 export function Verification() {
-  const { user, workspace, setWorkspace } = useDemo();
+  const { user, workspace, setWorkspace, showToast } = useDemo();
   const initial = workspace.verification;
   const [name, setName] = useState(initial.name);
   const [region, setRegion] = useState(initial.region);
@@ -87,7 +87,7 @@ export function Verification() {
                     channel: channel.trim(),
                     evidenceName: file,
                   },
-                }));
+                })); showToast("Pengajuan verifikasi instansi dikirim.", "success");
                 setError("");
               }}
             >
@@ -145,7 +145,7 @@ export function Verification() {
                       ].includes(selected.type) ||
                       selected.size > 10 * 1024 * 1024
                     ) {
-                      setError("Pilih PDF, JPG, PNG atau WebP maksimal 10 MB.");
+                      const msg = "Pilih PDF, JPG, PNG atau WebP maksimal 10 MB."; setError(msg); showToast(msg, "error");
                       e.target.value = "";
                       return;
                     }

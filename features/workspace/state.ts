@@ -1,3 +1,5 @@
+export type MessageRequestPolicy = "everyone" | "following" | "agencies";
+
 export interface DemoMessage {
   id: "";
   authorId: "";
@@ -18,6 +20,20 @@ export interface Workspace {
   readNotifications: string[];
   notificationSocial: boolean;
   notificationReports: boolean;
+  notificationValidation: boolean;
+  notificationEngagement: boolean;
+  notificationMessages: boolean;
+  notificationDigest: boolean;
+  mutedWords: string[];
+  mutedUsers: string[];
+  blockedUsers: string[];
+  preferredTopics: string[];
+  showSensitiveReports: boolean;
+  autoplayVideos: boolean;
+  privacyMessageRequests: MessageRequestPolicy;
+  privacyShowLikes: boolean;
+  privacyAllowMentions: boolean;
+  privacyDefaultAnonymous: boolean;
   conversations: Conversation[];
   verification: {
     id: "";
@@ -34,6 +50,20 @@ export function seedWorkspace(): Workspace {
     readNotifications: [],
     notificationSocial: true,
     notificationReports: true,
+    notificationValidation: true,
+    notificationEngagement: true,
+    notificationMessages: true,
+    notificationDigest: false,
+    mutedWords: [],
+    mutedUsers: [],
+    blockedUsers: [],
+    preferredTopics: [],
+    showSensitiveReports: true,
+    autoplayVideos: true,
+    privacyMessageRequests: "everyone",
+    privacyShowLikes: true,
+    privacyAllowMentions: true,
+    privacyDefaultAnonymous: false,
     conversations: [
       {
         id: "",

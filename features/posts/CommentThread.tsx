@@ -21,8 +21,11 @@ import { VerifiedBadge, renderWithMentions } from "./PostCard";
 import { useDemo } from "@/features/auth/DemoProvider";
 import { getEffectiveReportStatus } from "@/features/discovery/filters";
 import {
+  ACTION_VALIDATION_MIN_APPROVAL_PERCENT,
+  ACTION_VALIDATION_MIN_VOTES,
   extractClipboardMediaFiles,
   mediaError,
+  shouldAutoCloseAction,
 } from "@/lib/validation";
 import { LocationSelectorModal } from "@/components/selectors/LocationSelectorModal";
 import {
@@ -32,6 +35,7 @@ import {
 } from "@/components/ui/MediaGallery";
 import { EmojiSelectorModal } from "@/components/selectors/EmojiSelectorModal";
 import { InlineTokenSuggest } from "@/components/selectors/InlineTokenSuggest";
+import { LazyLoadSentinel, useLazySlice } from "@/components/ui/LazyFeed";
 import type { Post, Reply } from "@/types/models";
 
 function formatElapsedSince(startTime?: number, now = Date.now()): string {
@@ -57,7 +61,7 @@ export function CommentThread({
   depth?: number;
   onReply?: (key: string) => void;
 }) {
-  const { people, user, updatePost } = useDemo();
+  const { people, user, updatePost, showToast } = useDemo();
   const [text, setText] = useState("");
   const [replyTo, setReplyTo] = useState<string | undefined>();
   const [collapsed, setCollapsed] = useState<string[]>([]);
@@ -132,6 +136,18 @@ export function CommentThread({
   }, [isExpanded, showLocationModal, showEmojiModal]);
 
   const replies = post.replies.filter((reply) => reply.parentKey === parentKey);
+
+  const {
+    visibleItems: lazyRootReplies,
+    hasMore: hasMoreReplies,
+    isLoadingMore: isLoadingMoreReplies,
+    sentinelRef: repliesSentinelRef,
+  } = useLazySlice(replies, {
+    initialCount: 6,
+    batchSize: 6,
+    resetKey: `${post.localKey}:${parentKey ?? "root"}`,
+  });
+  const renderedReplies = root ? lazyRootReplies : replies;
 
   const replyTargetAuthor = replyTo
     ? people.find(
@@ -246,11 +262,42 @@ export function CommentThread({
     setReplyTo(undefined);
     setActionModeRole(null);
     setIsExpanded(false);
+    showToast(
+      isTakingAction
+        ? "Tindak lanjut berhasil dikirim."
+        : "Balasan terkirim.",
+      "success",
+    );
   }
 
   function voteReply(replyKey: string, direction: "UP" | "DOWN") {
+    const target = post.replies.find((r) => r.localKey === replyKey);
+    const nextVote = target?.vote === direction ? null : direction;
+    const nextUps = target
+      ? (target.upvotesCount ?? 0) + (nextVote === "UP" ? 1 : 0)
+      : 0;
+    const nextDowns = target
+      ? (target.downvotesCount ?? 0) + (nextVote === "DOWN" ? 1 : 0)
+      : 0;
+    const autoClosedNow =
+      Boolean(target?.is_action_taken) &&
+      isReport &&
+      !isClosed &&
+      shouldAutoCloseAction(nextUps, nextDowns);
+
     updatePost(post.localKey, (current) => ({
       ...current,
+      ...(autoClosedNow && target
+        ? {
+            reportStatus:
+              (target.actionRole || "GOVERNMENT") === "INTERNAL"
+                ? ("closed_internal" as const)
+                : ("completed" as const),
+            closedByKey: target.authorKey,
+            closedByRole: target.actionRole || "GOVERNMENT",
+            closedAt: Date.now(),
+          }
+        : {}),
       replies: current.replies.map((r) =>
         r.localKey === replyKey
           ? {
@@ -260,6 +307,13 @@ export function CommentThread({
           : r,
       ),
     }));
+
+    if (autoClosedNow) {
+      showToast(
+        `Laporan otomatis ditutup (${ACTION_VALIDATION_MIN_VOTES} suara & ${ACTION_VALIDATION_MIN_APPROVAL_PERCENT}% setuju tercapai).`,
+        "success",
+      );
+    }
   }
 
   function toggleRepostReply(replyKey: string) {
@@ -292,7 +346,7 @@ export function CommentThread({
   const actionApprovalPercent =
     actionTotalVotes > 0
       ? Math.round((actionUpvotes / actionTotalVotes) * 100)
-      : 100;
+      : 0;
 
   const closedRole =
     post.closedByRole || actionReply?.actionRole || "GOVERNMENT";
@@ -333,34 +387,37 @@ export function CommentThread({
           {/* 1. Active Validation Progress Bar (Above Tulis balasan... when Diproses) */}
           {isReport && actionReply && !isClosed && (
             <div className="action-validation-box">
-              <div className="action-validation-header">
-                <div className="action-validation-title">
-                  <strong>Validasi Tindak Lanjut</strong>
-                  <span className="action-validation-stats">
-                    {actionApprovalPercent}% ({actionUpvotes} ↑ ·{" "}
-                    {actionDownvotes} ↓)
-                  </span>
+              <div className="action-validation-heading">
+                <strong>Suara</strong>
+                <span className="action-validation-stats">
+                  {actionTotalVotes}/{ACTION_VALIDATION_MIN_VOTES} ({actionUpvotes}{" "}
+                  ↑ · {actionDownvotes} ↓ · min.{" "}
+                  {ACTION_VALIDATION_MIN_APPROVAL_PERCENT}%)
+                </span>
+              </div>
+              <div className="action-validation-bar-row">
+                <span
+                  className="action-validation-percent-badge"
+                  title={`${actionApprovalPercent}% setuju`}
+                >
+                  {actionApprovalPercent}%
+                </span>
+                <div
+                  className="action-progress-slider"
+                  role="progressbar"
+                  aria-valuenow={actionApprovalPercent}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-label="Persentase persetujuan tindak lanjut"
+                >
+                  <div
+                    className="action-progress-fill"
+                    style={{ width: `${actionApprovalPercent}%` }}
+                  />
                 </div>
-                <div className="action-validation-meta">
-                  <span
-                    className="action-validation-timer"
-                    title="Waktu sejak aparat mengambil tindakan"
-                  >
-                    <Timer size={13} strokeWidth={1.8} />
-                    <span>
-                      {formatElapsedSince(
-                        actionReply.actionTakenAt ?? actionReply.postedAt,
-                        now,
-                      )}
-                    </span>
-                  </span>
-                  <button
-                    type="button"
-                    className="action-validation-link"
-                    onClick={scrollToActionResponse}
-                  >
-                    Lihat Respon
-                  </button>
+              </div>
+              <div className="action-validation-footer">
+                <div className="action-validation-actions">
                   <button
                     type="button"
                     className="action-validation-finish-btn"
@@ -374,24 +431,31 @@ export function CommentThread({
                         closedByRole: role,
                         closedAt: Date.now(),
                       }));
+                      showToast("Laporan berhasil ditutup.", "success");
                     }}
                   >
                     Tutup Laporan
                   </button>
+                  <button
+                    type="button"
+                    className="action-validation-link"
+                    onClick={scrollToActionResponse}
+                  >
+                    Respon
+                  </button>
                 </div>
-              </div>
-              <div
-                className="action-progress-slider"
-                role="progressbar"
-                aria-valuenow={actionApprovalPercent}
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-label="Persentase persetujuan tindak lanjut"
-              >
-                <div
-                  className="action-progress-fill"
-                  style={{ width: `${actionApprovalPercent}%` }}
-                />
+                <span
+                  className="action-validation-timer"
+                  title="Waktu sejak aparat mengambil tindakan"
+                >
+                  <Timer size={13} strokeWidth={1.8} />
+                  <span>
+                    {formatElapsedSince(
+                      actionReply.actionTakenAt ?? actionReply.postedAt,
+                      now,
+                    )}
+                  </span>
+                </span>
               </div>
             </div>
           )}
@@ -401,7 +465,7 @@ export function CommentThread({
             <div className="closed-thread-banner">
               <div className="closed-thread-left">
                 <span className="closed-thread-text">
-                  This thread has been closed by
+                  Utas laporan ini sudah ditutup oleh
                 </span>
                 <span className="closed-thread-actor">
                   <Avatar name={closerPerson.name} src={closerPerson.image} />
@@ -414,7 +478,7 @@ export function CommentThread({
                 className="closed-thread-view-btn"
                 onClick={scrollToActionResponse}
               >
-                View Response
+                Lihat Tanggapan
               </button>
             </div>
           ) : !isExpanded ? (
@@ -674,7 +738,7 @@ export function CommentThread({
           Belum ada komentar pada cabang ini. Mulai percakapannya.
         </p>
       )}
-      {replies.map((reply) => {
+      {renderedReplies.map((reply) => {
         const author =
           people.find((person) => person.localKey === reply.authorKey) ??
           people[0];
@@ -768,7 +832,7 @@ export function CommentThread({
               <footer className="post-actions comment-post-actions">
                 <Button
                   variant="ghost"
-                  aria-label="Upvote komentar"
+                  aria-label="Dukung naik komentar"
                   aria-pressed={reply.vote === "UP"}
                   onClick={() => voteReply(reply.localKey, "UP")}
                 >
@@ -777,7 +841,7 @@ export function CommentThread({
                 </Button>
                 <Button
                   variant="ghost"
-                  aria-label="Downvote komentar"
+                  aria-label="Dukung turun komentar"
                   aria-pressed={reply.vote === "DOWN"}
                   onClick={() => voteReply(reply.localKey, "DOWN")}
                 >
@@ -796,7 +860,7 @@ export function CommentThread({
                 </Button>
                 <Button
                   variant="ghost"
-                  aria-label="Repost komentar"
+                  aria-label="Bagikan ulang komentar"
                   aria-pressed={!!reply.reposted}
                   onClick={() => toggleRepostReply(reply.localKey)}
                 >
@@ -810,8 +874,9 @@ export function CommentThread({
                       await navigator.clipboard.writeText(
                         `${window.location.origin}/posts/${post.localKey}#comment-${reply.localKey}`,
                       );
+                      showToast("Tautan komentar disalin.", "success");
                     } catch {
-                      // ignore clipboard error in demo
+                      showToast("Tautan komentar gagal disalin.", "error");
                     }
                   }}
                 >
@@ -854,6 +919,13 @@ export function CommentThread({
           </article>
         );
       })}
+      {root && (
+        <LazyLoadSentinel
+          hasMore={hasMoreReplies}
+          isLoadingMore={isLoadingMoreReplies}
+          sentinelRef={repliesSentinelRef}
+        />
+      )}
     </div>
   );
 }

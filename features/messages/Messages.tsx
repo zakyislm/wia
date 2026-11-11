@@ -23,17 +23,25 @@ import {
 } from "@/components/ui/MediaGallery";
 import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { EmojiSelectorModal } from "@/components/selectors/EmojiSelectorModal";
+import { useSubtabTransition } from "@/components/ui/LazyFeed";
+import { SkeletonMessageList } from "@/components/ui/Skeleton";
 import { mediaError } from "@/lib/validation";
 
 type ChatSubtab = "all" | "unread" | "sent";
 
 export function Messages({ selectedKey }: { selectedKey?: string }) {
-  const { user, people, workspace, setWorkspace, following, setFollowing } =
+  const { user, people, workspace, setWorkspace, following, setFollowing, showToast } =
     useDemo();
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [subtab, setSubtab] = useState<ChatSubtab>("all");
+  const { isSubtabLoading, triggerSubtabSkeleton } = useSubtabTransition(subtab);
   const [newMessage, setNew] = useState(false);
+
+  function selectChatSubtab(nextTab: ChatSubtab) {
+    triggerSubtabSkeleton(nextTab);
+    setSubtab(nextTab);
+  }
   const [recipientQuery, setRecipientQuery] = useState("");
   const [text, setText] = useState("");
   const [images, setImages] = useState<string[]>([]);
@@ -222,7 +230,7 @@ export function Messages({ selectedKey }: { selectedKey?: string }) {
                 role="tab"
                 aria-selected={subtab === "all"}
                 className={`notif-segment-btn ${subtab === "all" ? "active" : ""}`}
-                onClick={() => setSubtab("all")}
+                onClick={() => selectChatSubtab("all")}
               >
                 <span>Semua</span>
                 {counts.all > 0 && (
@@ -234,7 +242,7 @@ export function Messages({ selectedKey }: { selectedKey?: string }) {
                 role="tab"
                 aria-selected={subtab === "unread"}
                 className={`notif-segment-btn ${subtab === "unread" ? "active" : ""}`}
-                onClick={() => setSubtab("unread")}
+                onClick={() => selectChatSubtab("unread")}
               >
                 <span>Belum Dibaca</span>
                 {counts.unread > 0 && (
@@ -246,7 +254,7 @@ export function Messages({ selectedKey }: { selectedKey?: string }) {
                 role="tab"
                 aria-selected={subtab === "sent"}
                 className={`notif-segment-btn ${subtab === "sent" ? "active" : ""}`}
-                onClick={() => setSubtab("sent")}
+                onClick={() => selectChatSubtab("sent")}
               >
                 <span>Terkirim</span>
                 {counts.sent > 0 && (
@@ -258,56 +266,62 @@ export function Messages({ selectedKey }: { selectedKey?: string }) {
 
           {/* Conversation Rows */}
           <div className="conversation-items-scroll">
-            {filtered.map((item) => {
-              const person =
-                people.find((p) => p.localKey === item.partnerKey) ?? people[0];
-              const lastMsg = item.messages.at(-1);
-              const firstName = person.name.split(" ")[0];
-              const previewText = lastMsg
-                ? `${lastMsg.outgoing ? "Anda: " : `${firstName}: `}${lastMsg.text || (lastMsg.images?.length ? "Lampiran media" : "")}`
-                : "Percakapan baru";
+            {isSubtabLoading ? (
+              <SkeletonMessageList count={3} />
+            ) : (
+              <>
+                {filtered.map((item) => {
+                  const person =
+                    people.find((p) => p.localKey === item.partnerKey) ?? people[0];
+                  const lastMsg = item.messages.at(-1);
+                  const firstName = person.name.split(" ")[0];
+                  const previewText = lastMsg
+                    ? `${lastMsg.outgoing ? "Anda: " : `${firstName}: `}${lastMsg.text || (lastMsg.images?.length ? "Lampiran media" : "")}`
+                    : "Percakapan baru";
 
-              return (
-                <Link
-                  className={`conversation-item ${selectedKey === item.localKey ? "selected" : ""} ${item.unread ? "is-unread" : ""}`}
-                  href={`/messages/${item.localKey}`}
-                  key={item.localKey}
-                >
-                  <span
-                    className={`chat-unread-dot ${item.unread ? "visible" : ""}`}
-                    aria-hidden="true"
-                  />
-                  <Avatar name={person.name} src={person.image} />
-                  <div className="conversation-item-body">
-                    <div className="conversation-item-top">
-                      <strong className="conversation-item-name">
-                        <span>{person.name}</span>
-                        <VerifiedBadge role={person.role} size={14} />
-                      </strong>
-                      {lastMsg?.time && (
-                        <small className="conversation-item-time">
-                          {lastMsg.time}
-                        </small>
-                      )}
-                    </div>
-                    <p className="conversation-item-preview">{previewText}</p>
+                  return (
+                    <Link
+                      className={`conversation-item ${selectedKey === item.localKey ? "selected" : ""} ${item.unread ? "is-unread" : ""}`}
+                      href={`/messages/${item.localKey}`}
+                      key={item.localKey}
+                    >
+                      <span
+                        className={`chat-unread-dot ${item.unread ? "visible" : ""}`}
+                        aria-hidden="true"
+                      />
+                      <Avatar name={person.name} src={person.image} />
+                      <div className="conversation-item-body">
+                        <div className="conversation-item-top">
+                          <strong className="conversation-item-name">
+                            <span>{person.name}</span>
+                            <VerifiedBadge role={person.role} size={14} />
+                          </strong>
+                          {lastMsg?.time && (
+                            <small className="conversation-item-time">
+                              {lastMsg.time}
+                            </small>
+                          )}
+                        </div>
+                        <p className="conversation-item-preview">{previewText}</p>
+                      </div>
+                    </Link>
+                  );
+                })}
+
+                {!filtered.length && (
+                  <div className="empty-state chat-list-empty">
+                    <p>
+                      {query
+                        ? "Tidak ada percakapan yang cocok."
+                        : subtab === "unread"
+                          ? "Tidak ada pesan yang belum dibaca."
+                          : subtab === "sent"
+                            ? "Belum ada pesan terkirim."
+                            : "Belum ada percakapan."}
+                    </p>
                   </div>
-                </Link>
-              );
-            })}
-
-            {!filtered.length && (
-              <div className="empty-state chat-list-empty">
-                <p>
-                  {query
-                    ? "Tidak ada percakapan yang cocok."
-                    : subtab === "unread"
-                      ? "Tidak ada pesan yang belum dibaca."
-                      : subtab === "sent"
-                        ? "Belum ada pesan terkirim."
-                        : "Belum ada percakapan."}
-                </p>
-              </div>
+                )}
+              </>
             )}
           </div>
         </section>
@@ -475,8 +489,10 @@ export function Messages({ selectedKey }: { selectedKey?: string }) {
                       onChange={(event) => {
                         const files = Array.from(event.target.files ?? []);
                         const message = mediaError(files, images.length);
-                        if (message) setError(message);
-                        else {
+                        if (message) {
+                          setError(message);
+                          showToast(message, "error");
+                        } else {
                           const added = files.map((file) => {
                             const url = URL.createObjectURL(file);
                             return file.type.startsWith("video/") ||
@@ -569,7 +585,7 @@ export function Messages({ selectedKey }: { selectedKey?: string }) {
                 type="search"
                 value={recipientQuery}
                 onChange={(e) => setRecipientQuery(e.target.value)}
-                placeholder="Nama atau username"
+                placeholder="Cari nama atau @..."
                 autoFocus
               />
             </label>

@@ -133,7 +133,7 @@ export function Directory({ timeline = false }: { timeline?: boolean }) {
             {timeline ? "Terbaru ditutup · " : ""}
             {accounts ? accountResults.length : results.length}{" "}
             {accounts ? "akun" : "postingan"}
-            {timeline ? " · Hanya laporan Closed" : ""}
+            {timeline ? " · Hanya laporan selesai" : ""}
           </p>
         </div>
         {accounts
@@ -162,7 +162,7 @@ export function Directory({ timeline = false }: { timeline?: boolean }) {
               <div key={post.localKey} className="directory-post">
                 {timeline && (
                   <p className="closure-caption">
-                    Closed ·{" "}
+                    Selesai ·{" "}
                     {new Date(closureDate(post, now)!).toLocaleDateString(
                       "id-ID",
                       {
@@ -181,7 +181,7 @@ export function Directory({ timeline = false }: { timeline?: boolean }) {
           <div className="empty-state">
             <h2>
               {timeline
-                ? "Belum ada laporan Closed yang cocok"
+                ? "Belum ada laporan selesai yang cocok"
                 : "Tidak ada hasil"}
             </h2>
             <p>

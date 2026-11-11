@@ -218,7 +218,7 @@ export function QuickSearchModal({
             type="text"
             autoFocus
             className="quick-search-input"
-            placeholder="People, topics, or issues..."
+            placeholder="Cari warga, topik, atau cerita..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={(e) => {

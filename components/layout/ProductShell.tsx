@@ -30,6 +30,7 @@ import {
   ChevronDown,
   PenSquare,
   Megaphone,
+  ArrowLeft,
 } from "lucide-react";
 import { useDemo } from "@/features/auth/DemoProvider";
 import { Login } from "@/features/auth/Login";
@@ -64,6 +65,8 @@ export function ProductShell({
   wide = false,
   hideHeader = false,
   searchQuery = "",
+  backHref,
+  backLabel = "Kembali",
 }: {
   title?: ReactNode;
   children: ReactNode;
@@ -81,6 +84,8 @@ export function ProductShell({
   wide?: boolean;
   hideHeader?: boolean;
   searchQuery?: string;
+  backHref?: string;
+  backLabel?: string;
 }) {
   const trimmedSearchQuery = searchQuery.trim();
   const hasActiveSearch = Boolean(trimmedSearchQuery);
@@ -252,7 +257,7 @@ export function ProductShell({
                 }}
               >
                 <LogOut size={18} strokeWidth={1.8} />
-                <span>Log out</span>
+                <span>Keluar</span>
               </button>
             </div>
           )}
@@ -261,7 +266,7 @@ export function ProductShell({
             <Link
               href="/profile/@me"
               className={`sidebar-account-main ${active === "profile" ? "active" : ""}`}
-              aria-label="Profile"
+              aria-label="Profil"
               aria-current={active === "profile" ? "page" : undefined}
               onClick={(e) => {
                 const isCompactSidebar =
@@ -296,20 +301,30 @@ export function ProductShell({
       <div className="product-workspace">
         <header className="mobile-topbar">
           <div className="mobile-topbar-left">
-            <Link
-              href="/home"
-              className="mobile-topbar-logo"
-              aria-label="KAVI Beranda"
-            >
-              <Image
-                src="/kavi.png"
-                alt="KAVI"
-                width={56}
-                height={56}
-                className="mobile-topbar-logo-img"
-                preload
-              />
-            </Link>
+            {backHref ? (
+              <Link
+                href={backHref}
+                className="mobile-topbar-back"
+                aria-label={backLabel}
+              >
+                <ArrowLeft size={20} strokeWidth={2} />
+              </Link>
+            ) : (
+              <Link
+                href="/home"
+                className="mobile-topbar-logo"
+                aria-label="KAVI Beranda"
+              >
+                <Image
+                  src="/kavi.png"
+                  alt="KAVI"
+                  width={56}
+                  height={56}
+                  className="mobile-topbar-logo-img"
+                  preload
+                />
+              </Link>
+            )}
             <h1 className="mobile-topbar-title">{mobileTitle}</h1>
           </div>
 
@@ -385,7 +400,7 @@ export function ProductShell({
                     }}
                   >
                     <LogOut size={18} strokeWidth={1.8} />
-                    <span>Log out</span>
+                    <span>Keluar</span>
                   </button>
                 </div>
               )}

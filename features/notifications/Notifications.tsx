@@ -4,6 +4,12 @@ import { useState, useMemo } from "react";
 import { useDemo } from "@/features/auth/DemoProvider";
 import { ProductShell } from "@/components/layout/ProductShell";
 import { Avatar } from "@/components/ui/Avatar";
+import {
+  LazyLoadSentinel,
+  useLazySlice,
+  useSubtabTransition,
+} from "@/components/ui/LazyFeed";
+import { SkeletonNotificationList } from "@/components/ui/Skeleton";
 import { CheckCheck, Check, Trash2 } from "lucide-react";
 
 type NotifFilter = "all" | "unread" | "replies" | "activity";
@@ -40,7 +46,7 @@ const baseNotifItems: NotifItem[] = [
   {
     key: "closed",
     actor: "pupr",
-    title: "Validasi selesai · Laporan Closed",
+    title: "Validasi selesai · Laporan Ditutup",
     body: "Lihat bukti, hasil validasi dan riwayat percakapan.",
     href: "/posts/contoh-success#evidence",
     category: "activity",
@@ -108,6 +114,23 @@ export function Notifications() {
       return true;
     });
   }, [activeItems, tab, workspace.readNotifications]);
+
+  const {
+    visibleItems: visibleNotifs,
+    hasMore,
+    isLoadingMore,
+    sentinelRef,
+  } = useLazySlice(displayedItems, {
+    initialCount: 5,
+    batchSize: 5,
+    resetKey: tab,
+  });
+  const { isSubtabLoading, triggerSubtabSkeleton } = useSubtabTransition(tab);
+
+  function selectNotifTab(nextTab: NotifFilter) {
+    triggerSubtabSkeleton(nextTab);
+    setTab(nextTab);
+  }
 
   const isAllSelected =
     displayedItems.length > 0 &&
@@ -190,7 +213,7 @@ export function Notifications() {
                 role="tab"
                 aria-selected={tab === "all"}
                 className={`notif-segment-btn ${tab === "all" ? "active" : ""}`}
-                onClick={() => setTab("all")}
+                onClick={() => selectNotifTab("all")}
               >
                 <span>Semua</span>
                 {counts.all > 0 && (
@@ -202,7 +225,7 @@ export function Notifications() {
                 role="tab"
                 aria-selected={tab === "unread"}
                 className={`notif-segment-btn ${tab === "unread" ? "active" : ""}`}
-                onClick={() => setTab("unread")}
+                onClick={() => selectNotifTab("unread")}
               >
                 <span>Belum Dibaca</span>
                 {counts.unread > 0 && (
@@ -214,7 +237,7 @@ export function Notifications() {
                 role="tab"
                 aria-selected={tab === "replies"}
                 className={`notif-segment-btn ${tab === "replies" ? "active" : ""}`}
-                onClick={() => setTab("replies")}
+                onClick={() => selectNotifTab("replies")}
               >
                 <span>Balasan</span>
                 {counts.replies > 0 && (
@@ -226,7 +249,7 @@ export function Notifications() {
                 role="tab"
                 aria-selected={tab === "activity"}
                 className={`notif-segment-btn ${tab === "activity" ? "active" : ""}`}
-                onClick={() => setTab("activity")}
+                onClick={() => selectNotifTab("activity")}
               >
                 <span>Aktivitas</span>
                 {counts.activity > 0 && (
@@ -283,78 +306,90 @@ export function Notifications() {
 
         {/* Notifications List */}
         <div className="notif-items-list">
-          {displayedItems.map((item) => {
-            const actor = people.find(
-              (person) => person.localKey === item.actor,
-            ) || { name: "Pengguna", image: undefined };
-            const isRead = workspace.readNotifications.includes(item.key);
-            const isSelected = selectedKeys.has(item.key);
+          {isSubtabLoading ? (
+            <SkeletonNotificationList count={4} />
+          ) : (
+            <>
+              {visibleNotifs.map((item) => {
+                const actor = people.find(
+                  (person) => person.localKey === item.actor,
+                ) || { name: "Pengguna", image: undefined };
+                const isRead = workspace.readNotifications.includes(item.key);
+                const isSelected = selectedKeys.has(item.key);
 
-            return (
-              <div
-                key={item.key}
-                onClick={(e) => {
-                  if (isSelecting) {
-                    e.preventDefault();
-                    handleToggleItem(item.key);
-                  }
-                }}
-                className={`notification-row ${isRead ? "" : "is-unread"} ${
-                  isSelecting ? "is-selectable" : ""
-                } ${isSelected ? "is-selected" : ""}`}
-              >
-                {/* Checkbox indicator in selection mode */}
-                {isSelecting && (
-                  <span
-                    className={`notif-item-checkbox ${
-                      isSelected ? "is-checked" : ""
-                    }`}
+                return (
+                  <div
+                    key={item.key}
                     onClick={(e) => {
-                      e.stopPropagation();
-                      handleToggleItem(item.key);
+                      if (isSelecting) {
+                        e.preventDefault();
+                        handleToggleItem(item.key);
+                      }
                     }}
+                    className={`notification-row ${isRead ? "" : "is-unread"} ${
+                      isSelecting ? "is-selectable" : ""
+                    } ${isSelected ? "is-selected" : ""}`}
                   >
-                    {isSelected && <Check size={12} strokeWidth={3} />}
-                  </span>
-                )}
+                    {/* Checkbox indicator in selection mode */}
+                    {isSelecting && (
+                      <span
+                        className={`notif-item-checkbox ${
+                          isSelected ? "is-checked" : ""
+                        }`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleToggleItem(item.key);
+                        }}
+                      >
+                        {isSelected && <Check size={12} strokeWidth={3} />}
+                      </span>
+                    )}
 
-                <Avatar name={actor.name} src={actor.image} />
-                <div className="notif-content-col">
-                  {isSelecting ? (
-                    <div>
-                      <strong>{item.title}</strong>
-                      <p>{item.body}</p>
-                      <small className="muted">{item.time}</small>
+                    <Avatar name={actor.name} src={actor.image} />
+                    <div className="notif-content-col">
+                      {isSelecting ? (
+                        <div>
+                          <strong>{item.title}</strong>
+                          <p>{item.body}</p>
+                          <small className="muted">{item.time}</small>
+                        </div>
+                      ) : (
+                        <Link
+                          href={item.href}
+                          onClick={() => readSingle(item.key)}
+                          className="notif-row-link"
+                        >
+                          <strong>{item.title}</strong>
+                          <p>{item.body}</p>
+                          <small className="muted">{item.time}</small>
+                        </Link>
+                      )}
                     </div>
-                  ) : (
-                    <Link
-                      href={item.href}
-                      onClick={() => readSingle(item.key)}
-                      className="notif-row-link"
-                    >
-                      <strong>{item.title}</strong>
-                      <p>{item.body}</p>
-                      <small className="muted">{item.time}</small>
-                    </Link>
-                  )}
+
+                    {!isRead && (
+                      <span className="unread-dot" aria-label="Belum dibaca" />
+                    )}
+                  </div>
+                );
+              })}
+              <LazyLoadSentinel
+                hasMore={hasMore}
+                isLoadingMore={isLoadingMore}
+                sentinelRef={sentinelRef}
+                variant="notification"
+              />
+
+              {!displayedItems.length && (
+                <div className="empty-state">
+                  <h2>Tidak ada notifikasi</h2>
+                  <p>
+                    {tab === "unread"
+                      ? "Semua notifikasi sudah Anda baca."
+                      : "Belum ada notifikasi pada kategori ini."}
+                  </p>
                 </div>
-
-                {!isRead && (
-                  <span className="unread-dot" aria-label="Belum dibaca" />
-                )}
-              </div>
-            );
-          })}
-
-          {!displayedItems.length && (
-            <div className="empty-state">
-              <h2>Tidak ada notifikasi</h2>
-              <p>
-                {tab === "unread"
-                  ? "Semua notifikasi sudah Anda baca."
-                  : "Belum ada notifikasi pada kategori ini."}
-              </p>
-            </div>
+              )}
+            </>
           )}
         </div>
 

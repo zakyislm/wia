@@ -9,7 +9,7 @@ import { MediaGallery } from "@/components/ui/MediaGallery";
 import type { Post } from "@/types/models";
 
 export function ResolutionPanel({ post }: { post: Post }) {
-  const { people, updatePost, user } = useDemo();
+  const { people, updatePost, user, showToast } = useDemo();
   const [now, setNow] = useState(() => Date.now());
   const [argument, setArgument] = useState("");
   const [images, setImages] = useState<string[]>([]);
@@ -64,7 +64,7 @@ export function ResolutionPanel({ post }: { post: Post }) {
                 {result === "active"
                   ? "Validasi sedang berlangsung"
                   : result === "success"
-                    ? "Case Closed · Disetujui warga"
+                    ? "Laporan Selesai · Disetujui warga"
                     : result === "automatic"
                       ? "Ditutup otomatis · Tidak ada suara"
                       : "Pengajuan gagal · Laporan tetap terbuka"}
@@ -124,7 +124,7 @@ export function ResolutionPanel({ post }: { post: Post }) {
                         resolution.choice === choice ? "primary" : "secondary"
                       }
                       aria-pressed={resolution.choice === choice}
-                      onClick={() =>
+                      onClick={() => {
                         updatePost(post.localKey, (current) => ({
                           ...current,
                           resolutions: current.resolutions.map((item) => {
@@ -147,8 +147,9 @@ export function ResolutionPanel({ post }: { post: Post }) {
                               choice,
                             };
                           }),
-                        }))
-                      }
+                        }));
+                        showToast("Suara validasi disimpan.", "success");
+                      }}
                     >
                       {choice === "agree" ? "Setuju" : "Belum selesai"}
                     </Button>
@@ -195,6 +196,10 @@ export function ResolutionPanel({ post }: { post: Post }) {
             setArgument("");
             setImages([]);
             pendingPhotos.current = [];
+            showToast(
+              "Bukti penyelesaian diajukan untuk validasi 72 jam.",
+              "success",
+            );
           }}
         >
           <label>
@@ -215,8 +220,10 @@ export function ResolutionPanel({ post }: { post: Post }) {
               onChange={(event) => {
                 const files = Array.from(event.target.files ?? []);
                 const message = photoError(files, images.length);
-                if (message) setPhotoMessage(message);
-                else {
+                if (message) {
+                  setPhotoMessage(message);
+                  showToast(message, "error");
+                } else {
                   const urls = files.map((file) => URL.createObjectURL(file));
                   pendingPhotos.current.push(...urls);
                   setImages((current) => [...current, ...urls]);

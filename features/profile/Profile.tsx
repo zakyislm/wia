@@ -27,6 +27,12 @@ import { MediaGallery } from "@/components/ui/MediaGallery";
 import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { Dialog } from "@/components/ui/Dialog";
 import { PostCard, renderWithMentions } from "@/features/posts/PostCard";
+import {
+  LazyLoadSentinel,
+  useLazySlice,
+  useSubtabTransition,
+} from "@/components/ui/LazyFeed";
+import { SkeletonPostList } from "@/components/ui/Skeleton";
 import { Composer } from "@/features/posts/Composer";
 import { SearchTriggerButton } from "@/components/search/QuickSearchModal";
 import {
@@ -51,14 +57,14 @@ function formatShortTime(timestamp?: number): string {
   return `${Math.floor(hours / 24)}h`;
 }
 
-function EditProfile({
+export function EditProfile({
   person,
   onClose,
 }: {
   person: Person;
   onClose: () => void;
 }) {
-  const { setPeople, user } = useDemo();
+  const { setPeople, user, showToast } = useDemo();
   const [name, setName] = useState(person.name);
   const [bio, setBio] = useState(person.bio);
   const [region, setRegion] = useState(person.region ?? "");
@@ -156,6 +162,7 @@ function EditProfile({
             created.current
               .filter((url) => url !== image)
               .forEach((url) => URL.revokeObjectURL(url));
+            showToast("Profil diperbarui.", "success");
             onClose();
           }}
         >
@@ -301,6 +308,7 @@ export function Profile({ profileKey }: { profileKey?: string }) {
     setFollowing,
     workspace,
     setWorkspace,
+    showToast,
   } = useDemo();
   const router = useRouter();
   const posts = allPosts.filter((post) => !post.isDeleted);
@@ -314,9 +322,6 @@ export function Profile({ profileKey }: { profileKey?: string }) {
   const [composerMode, setComposerMode] = useState<"post" | "report" | null>(
     null,
   );
-  const [mutedByKey, setMutedByKey] = useState<Record<string, boolean>>({});
-  const [blockedByKey, setBlockedByKey] = useState<Record<string, boolean>>({});
-  const [actionNotice, setActionNotice] = useState("");
   const visibilityMenuRef = useRef<HTMLDivElement>(null);
   const createMenuRef = useRef<HTMLDivElement>(null);
   const moreMenuRef = useRef<HTMLDivElement>(null);
@@ -390,11 +395,15 @@ export function Profile({ profileKey }: { profileKey?: string }) {
   );
   const normalizedQuery = profileQuery.trim().toLowerCase();
   const visible =
-    (activeTab === "reposts"
+    (activeTab === "saved"
       ? own
-        ? posts.filter((post) => post.reposted)
+        ? posts.filter((post) => post.saved)
         : []
-      : activeTab === "tagged"
+      : activeTab === "reposts"
+        ? own
+          ? posts.filter((post) => post.reposted)
+          : []
+        : activeTab === "tagged"
         ? posts.filter((post) =>
             post.agencyKeys.includes(person?.localKey ?? ""),
           )
@@ -451,6 +460,45 @@ export function Profile({ profileKey }: { profileKey?: string }) {
     visibility,
     normalizedQuery,
   ]);
+
+  const profileResetKey = `${person?.localKey ?? ""}:${activeTab}:${visibility}:${normalizedQuery}`;
+  const {
+    visibleItems: visibleProfilePosts,
+    hasMore: hasMoreProfilePosts,
+    isLoadingMore: isLoadingMoreProfilePosts,
+    sentinelRef: profilePostsSentinelRef,
+  } = useLazySlice(visible, {
+    initialCount: 4,
+    batchSize: 4,
+    resetKey: profileResetKey,
+  });
+
+  const {
+    visibleItems: visibleProfileComments,
+    hasMore: hasMoreProfileComments,
+    isLoadingMore: isLoadingMoreProfileComments,
+    sentinelRef: profileCommentsSentinelRef,
+  } = useLazySlice(profileComments, {
+    initialCount: 4,
+    batchSize: 4,
+    resetKey: profileResetKey,
+  });
+
+  const profileSubtabKey = `${activeTab}:${visibility}`;
+  const { isSubtabLoading, triggerSubtabSkeleton } =
+    useSubtabTransition(profileSubtabKey);
+
+  function handleSelectProfileTab(nextTab: string) {
+    triggerSubtabSkeleton(`${nextTab}:${visibility}`);
+    setTab(nextTab);
+    setVisibilityMenuOpen(false);
+  }
+
+  function handleSelectVisibility(nextVis: "public" | "anonymous") {
+    triggerSubtabSkeleton(`${activeTab}:${nextVis}`);
+    setVisibility(nextVis);
+    setVisibilityMenuOpen(false);
+  }
 
   function handleApplyProfileQuery(nextRaw: string) {
     const clean = nextRaw.trim();
@@ -533,7 +581,8 @@ export function Profile({ profileKey }: { profileKey?: string }) {
     { key: "reports", label: "Laporan" },
     { key: "replies", label: "Balasan" },
     ...(isOfficialAccount ? [{ key: "responses", label: "Respon" }] : []),
-    { key: "reposts", label: "Repost" },
+    ...(own ? [{ key: "saved", label: "Tersimpan" }] : []),
+    { key: "reposts", label: "Dibagikan" },
     { key: "tagged", label: "Ditandai" },
   ];
   return (
@@ -713,10 +762,11 @@ export function Profile({ profileKey }: { profileKey?: string }) {
                                 await navigator.clipboard.writeText(
                                   `${location.origin}/profile/${person.username || person.localKey}`,
                                 );
-                                setActionNotice("Tautan profil disalin.");
+                                showToast("Tautan profil disalin.", "success");
                               } catch {
-                                setActionNotice(
+                                showToast(
                                   "Tidak dapat menyalin tautan profil.",
+                                  "error",
                                 );
                               }
                             }}
@@ -730,26 +780,33 @@ export function Profile({ profileKey }: { profileKey?: string }) {
                             role="menuitem"
                             className="sidebar-account-menu-item"
                             onClick={() => {
-                              const next = !mutedByKey[person.localKey];
+                              const next = !workspace.mutedUsers.includes(
+                                person.localKey,
+                              );
                               setMoreMenuOpen(false);
-                              setMutedByKey((prev) => ({
+                              setWorkspace((prev) => ({
                                 ...prev,
-                                [person.localKey]: next,
+                                mutedUsers: next
+                                  ? [...prev.mutedUsers, person.localKey]
+                                  : prev.mutedUsers.filter(
+                                      (key) => key !== person.localKey,
+                                    ),
                               }));
-                              setActionNotice(
+                              showToast(
                                 next
                                   ? `@${person.username} dibisukan.`
                                   : `Bisu @${person.username} dibatalkan.`,
+                                "info",
                               );
                             }}
                           >
-                            {mutedByKey[person.localKey] ? (
+                            {workspace.mutedUsers.includes(person.localKey) ? (
                               <Volume2 size={18} strokeWidth={1.8} />
                             ) : (
                               <VolumeX size={18} strokeWidth={1.8} />
                             )}
                             <span>
-                              {mutedByKey[person.localKey]
+                              {workspace.mutedUsers.includes(person.localKey)
                                 ? "Bunyikan akun"
                                 : "Bisukan akun"}
                             </span>
@@ -762,22 +819,29 @@ export function Profile({ profileKey }: { profileKey?: string }) {
                             role="menuitem"
                             className="sidebar-account-menu-item sidebar-account-menu-item--danger"
                             onClick={() => {
-                              const next = !blockedByKey[person.localKey];
+                              const next = !workspace.blockedUsers.includes(
+                                person.localKey,
+                              );
                               setMoreMenuOpen(false);
-                              setBlockedByKey((prev) => ({
+                              setWorkspace((prev) => ({
                                 ...prev,
-                                [person.localKey]: next,
+                                blockedUsers: next
+                                  ? [...prev.blockedUsers, person.localKey]
+                                  : prev.blockedUsers.filter(
+                                      (key) => key !== person.localKey,
+                                    ),
                               }));
-                              setActionNotice(
+                              showToast(
                                 next
                                   ? `@${person.username} diblokir.`
                                   : `Blokir @${person.username} dibuka.`,
+                                "info",
                               );
                             }}
                           >
                             <Ban size={18} strokeWidth={1.8} />
                             <span>
-                              {blockedByKey[person.localKey]
+                              {workspace.blockedUsers.includes(person.localKey)
                                 ? "Buka blokir"
                                 : "Blokir akun"}
                             </span>
@@ -789,8 +853,9 @@ export function Profile({ profileKey }: { profileKey?: string }) {
                             className="sidebar-account-menu-item sidebar-account-menu-item--danger"
                             onClick={() => {
                               setMoreMenuOpen(false);
-                              setActionNotice(
+                              showToast(
                                 `Laporan akun @${person.username} dicatat.`,
+                                "success",
                               );
                             }}
                           >
@@ -803,12 +868,6 @@ export function Profile({ profileKey }: { profileKey?: string }) {
                   </>
                 )}
               </div>
-
-              {actionNotice && (
-                <p role="status" className="small muted">
-                  {actionNotice}
-                </p>
-              )}
             </header>
 
             <div className="profile-controls-bar">
@@ -859,10 +918,7 @@ export function Profile({ profileKey }: { profileKey?: string }) {
                         role="menuitemradio"
                         aria-checked={visibility === "public"}
                         className={`profile-filter-option ${visibility === "public" ? "is-selected" : ""}`}
-                        onClick={() => {
-                          setVisibility("public");
-                          setVisibilityMenuOpen(false);
-                        }}
+                        onClick={() => handleSelectVisibility("public")}
                       >
                         <span>Publik</span>
                         {visibility === "public" && (
@@ -874,10 +930,7 @@ export function Profile({ profileKey }: { profileKey?: string }) {
                         role="menuitemradio"
                         aria-checked={visibility === "anonymous"}
                         className={`profile-filter-option ${visibility === "anonymous" ? "is-selected" : ""}`}
-                        onClick={() => {
-                          setVisibility("anonymous");
-                          setVisibilityMenuOpen(false);
-                        }}
+                        onClick={() => handleSelectVisibility("anonymous")}
                       >
                         <span>Anonim</span>
                         {visibility === "anonymous" && (
@@ -900,10 +953,7 @@ export function Profile({ profileKey }: { profileKey?: string }) {
                   role="tab"
                   aria-selected={activeTab === item.key}
                   key={item.key}
-                  onClick={() => {
-                    setTab(item.key);
-                    setVisibilityMenuOpen(false);
-                  }}
+                  onClick={() => handleSelectProfileTab(item.key)}
                 >
                   {item.label}
                 </button>
@@ -925,9 +975,14 @@ export function Profile({ profileKey }: { profileKey?: string }) {
                 </button>
               </div>
             )}
-            {isCommentTab ? (
+            {isSubtabLoading ? (
+              <SkeletonPostList
+                count={2}
+                isReport={activeTab === "reports" || activeTab === "responses"}
+              />
+            ) : isCommentTab ? (
               <>
-                {profileComments.map(({ reply, post }) => {
+                {visibleProfileComments.map(({ reply, post }) => {
                   const isReplyAnon =
                     Boolean(reply.anonymous) && !reply.is_action_taken;
                   const displayName = isReplyAnon ? "Anonim" : person.name;
@@ -1021,6 +1076,11 @@ export function Profile({ profileKey }: { profileKey?: string }) {
                     </article>
                   );
                 })}
+                <LazyLoadSentinel
+                  hasMore={hasMoreProfileComments}
+                  isLoadingMore={isLoadingMoreProfileComments}
+                  sentinelRef={profileCommentsSentinelRef}
+                />
                 {!profileComments.length && (
                   <div className="empty-state">
                     <h2>
@@ -1040,23 +1100,36 @@ export function Profile({ profileKey }: { profileKey?: string }) {
               </>
             ) : (
               <>
-                {visible.map((post) => (
+                {visibleProfilePosts.map((post) => (
                   <PostCard key={post.localKey} post={post} />
                 ))}
+                <LazyLoadSentinel
+                  hasMore={hasMoreProfilePosts}
+                  isLoadingMore={isLoadingMoreProfilePosts}
+                  sentinelRef={profilePostsSentinelRef}
+                />
                 {!visible.length && (
                   <div className="empty-state">
                     <h2>
-                      Belum ada{" "}
-                      {tabs
-                        .find((item) => item.key === activeTab)
-                        ?.label.toLowerCase()}
-                      {showVisibilityFilter
-                        ? visibility === "anonymous"
-                          ? " anonim"
-                          : " publik"
-                        : ""}
+                      {activeTab === "saved"
+                        ? "Belum ada postingan tersimpan"
+                        : `Belum ada ${
+                            tabs
+                              .find((item) => item.key === activeTab)
+                              ?.label.toLowerCase() ?? ""
+                          }${
+                            showVisibilityFilter
+                              ? visibility === "anonymous"
+                                ? " anonim"
+                                : " publik"
+                              : ""
+                          }`}
                     </h2>
-                    <p>Konten yang tersedia akan muncul di sini.</p>
+                    <p>
+                      {activeTab === "saved"
+                        ? "Simpan postingan atau laporan lewat menu titik tiga supaya gampang kamu buka lagi."
+                        : "Konten yang tersedia akan muncul di sini."}
+                    </p>
                   </div>
                 )}
               </>

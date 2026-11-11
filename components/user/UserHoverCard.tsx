@@ -1,10 +1,41 @@
 "use client";
-import React, { useState, useRef, useMemo } from "react";
+import React, { useState, useRef, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { useDemo } from "@/features/auth/DemoProvider";
 import { Avatar } from "@/components/ui/Avatar";
 import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import type { Person, Post } from "@/types/models";
+
+const HOVER_CARD_MAX_WIDTH = 300;
+const HOVER_CARD_ESTIMATED_HEIGHT = 216;
+const VIEWPORT_PADDING = 12;
+const HOVER_CARD_GAP = 8;
+
+function computeHoverCardPosition(
+  triggerRect: DOMRect,
+  cardWidth: number,
+  cardHeight: number,
+): { top: number; left: number } {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const maxLeft = Math.max(VIEWPORT_PADDING, vw - cardWidth - VIEWPORT_PADDING);
+  const left = Math.min(Math.max(VIEWPORT_PADDING, triggerRect.left), maxLeft);
+
+  const isMobile = vw <= 600;
+  const topMargin = isMobile ? 68 : VIEWPORT_PADDING;
+  const bottomMargin = isMobile ? 72 : VIEWPORT_PADDING;
+  const belowTop = triggerRect.bottom + HOVER_CARD_GAP;
+  const aboveTop = triggerRect.top - cardHeight - HOVER_CARD_GAP;
+
+  let top = belowTop;
+  if (belowTop + cardHeight > vh - bottomMargin && aboveTop >= topMargin) {
+    top = aboveTop;
+  } else if (belowTop + cardHeight > vh - bottomMargin) {
+    const maxTop = Math.max(topMargin, vh - cardHeight - bottomMargin);
+    top = Math.min(Math.max(topMargin, belowTop), maxTop);
+  }
+  return { top, left };
+}
 
 export function countPublicPosts(posts: Post[], authorKey?: string): number {
   if (!authorKey) return 0;
@@ -33,6 +64,12 @@ const mockFollowerMap: Record<string, string> = {
 export function UserHoverCard({ person, children }: UserHoverCardProps) {
   const { user, following, setFollowing, posts } = useDemo();
   const [open, setOpen] = useState(false);
+  const [cardCoords, setCardCoords] = useState<{
+    top: number;
+    left: number;
+  } | null>(null);
+  const triggerRef = useRef<HTMLSpanElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
   const enterTimeout = useRef<NodeJS.Timeout | null>(null);
   const leaveTimeout = useRef<NodeJS.Timeout | null>(null);
 
@@ -45,6 +82,19 @@ export function UserHoverCard({ person, children }: UserHoverCardProps) {
       leaveTimeout.current = null;
     }
     enterTimeout.current = setTimeout(() => {
+      if (triggerRef.current && typeof window !== "undefined") {
+        const estimatedWidth = Math.min(
+          HOVER_CARD_MAX_WIDTH,
+          window.innerWidth - VIEWPORT_PADDING * 2,
+        );
+        setCardCoords(
+          computeHoverCardPosition(
+            triggerRef.current.getBoundingClientRect(),
+            estimatedWidth,
+            HOVER_CARD_ESTIMATED_HEIGHT,
+          ),
+        );
+      }
       setOpen(true);
     }, 280);
   };
@@ -58,6 +108,57 @@ export function UserHoverCard({ person, children }: UserHoverCardProps) {
       setOpen(false);
     }, 200);
   };
+
+  useEffect(() => {
+    return () => {
+      if (enterTimeout.current) clearTimeout(enterTimeout.current);
+      if (leaveTimeout.current) clearTimeout(leaveTimeout.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const updatePosition = () => {
+      const trigger = triggerRef.current;
+      const card = cardRef.current;
+      if (!trigger || !card) return;
+      const triggerRect = trigger.getBoundingClientRect();
+      if (triggerRect.bottom < 0 || triggerRect.top > window.innerHeight) {
+        setOpen(false);
+        return;
+      }
+      const width =
+        card.offsetWidth ||
+        Math.min(
+          HOVER_CARD_MAX_WIDTH,
+          window.innerWidth - VIEWPORT_PADDING * 2,
+        );
+      const height = card.offsetHeight || HOVER_CARD_ESTIMATED_HEIGHT;
+      setCardCoords(computeHoverCardPosition(triggerRect, width, height));
+    };
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null;
+      if (
+        target &&
+        !triggerRef.current?.contains(target) &&
+        !cardRef.current?.contains(target)
+      ) {
+        setOpen(false);
+      }
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    window.addEventListener("pointerdown", handlePointerDown);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+      window.removeEventListener("pointerdown", handlePointerDown);
+    };
+  }, [open]);
 
   const postCount = useMemo(
     () => countPublicPosts(posts, person.localKey),
@@ -85,6 +186,7 @@ export function UserHoverCard({ person, children }: UserHoverCardProps) {
 
   return (
     <span
+      ref={triggerRef}
       className="user-hover-trigger-wrap"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
@@ -92,7 +194,13 @@ export function UserHoverCard({ person, children }: UserHoverCardProps) {
       {children}
       {open && (
         <div
+          ref={cardRef}
           className="user-hover-card"
+          style={
+            cardCoords
+              ? { top: `${cardCoords.top}px`, left: `${cardCoords.left}px` }
+              : undefined
+          }
           onClick={(e) => e.stopPropagation()}
           onMouseEnter={handleMouseEnter}
           onMouseLeave={handleMouseLeave}
@@ -111,16 +219,15 @@ export function UserHoverCard({ person, children }: UserHoverCardProps) {
           </div>
 
           <p className="user-hover-bio">
-            {person.bio ||
-              "Just a mom that care with her countrysituation. #SuarakanRakyat"}
+            {person.bio || "Warga aktif di KAVI."}
           </p>
 
           <div className="user-hover-stats">
             <span className="user-hover-stat">
-              <strong>{postCount}</strong> posts
+              <strong>{postCount}</strong> postingan
             </span>
             <span className="user-hover-stat">
-              <strong>{followerDisplay}</strong> followers
+              <strong>{followerDisplay}</strong> pengikut
             </span>
           </div>
 
@@ -136,13 +243,13 @@ export function UserHoverCard({ person, children }: UserHoverCardProps) {
                   className={`user-hover-btn ${isFollowing ? "outline" : "solid"}`}
                   onClick={handleToggleFollow}
                 >
-                  {isFollowing ? "Following" : "Follow"}
+                  {isFollowing ? "Mengikuti" : "Ikuti"}
                 </button>
                 <Link
                   href={`/messages?partner=${person.localKey}`}
                   className="user-hover-btn outline"
                 >
-                  Message
+                  Kirim Pesan
                 </Link>
               </>
             )}

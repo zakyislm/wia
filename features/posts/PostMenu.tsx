@@ -19,12 +19,15 @@ import {
 } from "lucide-react";
 import { useDemo } from "@/features/auth/DemoProvider";
 import { getEffectiveReportStatus } from "@/features/discovery/filters";
+import { getPostPermissions } from "@/lib/permissions";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/Dialog";
+import { SelectMenu } from "@/components/ui/SelectMenu";
 import type { Post } from "@/types/models";
 
 export function PostMenu({ post }: { post: Post }) {
-  const { updatePost, setPosts, following, setFollowing } = useDemo();
+  const { user, updatePost, setPosts, following, setFollowing, showToast } =
+    useDemo();
   const router = useRouter();
   const pathname = usePathname();
   const isFollowing = following.includes(post.authorKey);
@@ -32,10 +35,9 @@ export function PostMenu({ post }: { post: Post }) {
   const [dialog, setDialog] = useState<"report" | "remove" | null>(null);
   const [reason, setReason] = useState("SPAM");
   const [details, setDetails] = useState("");
-  const [status, setStatus] = useState("");
 
-  const isReport = post.kind === "report";
-  const reportStatus = isReport ? getEffectiveReportStatus(post) : null;
+  const perms = getPostPermissions(post, user);
+  const reportStatus = perms.isReport ? getEffectiveReportStatus(post) : null;
   const isClosed =
     reportStatus === "completed" || reportStatus === "closed_internal";
 
@@ -83,77 +85,91 @@ export function PostMenu({ post }: { post: Post }) {
           <MoreHorizontal size={20} />
         </summary>
         <div className="post-menu-options">
-          {isReport && (
+          {perms.hasReportSection && (
             <>
-              <button
-                type="button"
-                className="post-menu-item"
-                onClick={() => triggerTakeAction("GOVERNMENT")}
-              >
-                <ShieldCheck size={18} strokeWidth={1.8} />
-                <span>Take Action (Aparat)</span>
-              </button>
-
-              <button
-                type="button"
-                className="post-menu-item"
-                onClick={() => triggerTakeAction("INTERNAL")}
-              >
-                <ShieldAlert size={18} strokeWidth={1.8} />
-                <span>Take Action (Internal)</span>
-              </button>
-
-              {!isClosed ? (
+              {perms.canTakeGovAction && (
                 <button
                   type="button"
                   className="post-menu-item"
-                  onClick={() => {
-                    const actionReply = [...post.replies]
-                      .reverse()
-                      .find((r) => r.is_action_taken);
-                    const closerRole =
-                      actionReply?.actionRole || "GOVERNMENT";
-                    const closerKey =
-                      actionReply?.authorKey ||
-                      (closerRole === "INTERNAL" ? "zaky_internal" : "pupr");
-                    updatePost(post.localKey, (current) => ({
-                      ...current,
-                      reportStatus:
-                        closerRole === "INTERNAL"
-                          ? "closed_internal"
-                          : "completed",
-                      closedByKey: closerKey,
-                      closedByRole: closerRole,
-                      closedAt: Date.now(),
-                    }));
-                    closeMenu();
-                  }}
+                  onClick={() => triggerTakeAction("GOVERNMENT")}
                 >
-                  <CheckCircle2 size={18} strokeWidth={1.8} />
-                  <span>Mark Closed (Selesai)</span>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="post-menu-item"
-                  onClick={() => {
-                    const hasAction = post.replies.some(
-                      (r) => r.is_action_taken,
-                    );
-                    updatePost(post.localKey, (current) => ({
-                      ...current,
-                      reportStatus: hasAction ? "in_progress" : "waiting",
-                      closedByKey: undefined,
-                      closedByRole: undefined,
-                      closedAt: undefined,
-                    }));
-                    closeMenu();
-                  }}
-                >
-                  <RotateCcw size={18} strokeWidth={1.8} />
-                  <span>Reopen Report</span>
+                  <ShieldCheck size={18} strokeWidth={1.8} />
+                  <span>Tindak Lanjuti (Aparat)</span>
                 </button>
               )}
+
+              {perms.canTakeInternalAction && (
+                <button
+                  type="button"
+                  className="post-menu-item"
+                  onClick={() => triggerTakeAction("INTERNAL")}
+                >
+                  <ShieldAlert size={18} strokeWidth={1.8} />
+                  <span>Tindak Lanjuti (Internal)</span>
+                </button>
+              )}
+
+              {perms.canModerateReport &&
+                (!isClosed ? (
+                  <button
+                    type="button"
+                    className="post-menu-item"
+                    onClick={() => {
+                      const actionReply = [...post.replies]
+                        .reverse()
+                        .find((r) => r.is_action_taken);
+                      const closerRole =
+                        actionReply?.actionRole ||
+                        (user?.role === "INTERNAL" ? "INTERNAL" : "GOVERNMENT");
+                      const closerKey =
+                        actionReply?.authorKey ||
+                        user?.localKey ||
+                        (closerRole === "INTERNAL" ? "zaky_internal" : "pupr");
+                      updatePost(post.localKey, (current) => ({
+                        ...current,
+                        reportStatus:
+                          closerRole === "INTERNAL"
+                            ? "closed_internal"
+                            : "completed",
+                        closedByKey: closerKey,
+                        closedByRole: closerRole,
+                        closedAt: Date.now(),
+                      }));
+                      showToast(
+                        closerRole === "INTERNAL"
+                          ? "Laporan ditutup internal."
+                          : "Laporan ditandai selesai.",
+                        "success",
+                      );
+                      closeMenu();
+                    }}
+                  >
+                    <CheckCircle2 size={18} strokeWidth={1.8} />
+                    <span>Tandai Selesai</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="post-menu-item"
+                    onClick={() => {
+                      const hasAction = post.replies.some(
+                        (r) => r.is_action_taken,
+                      );
+                      updatePost(post.localKey, (current) => ({
+                        ...current,
+                        reportStatus: hasAction ? "in_progress" : "waiting",
+                        closedByKey: undefined,
+                        closedByRole: undefined,
+                        closedAt: undefined,
+                      }));
+                      showToast("Laporan dibuka kembali.", "info");
+                      closeMenu();
+                    }}
+                  >
+                    <RotateCcw size={18} strokeWidth={1.8} />
+                    <span>Buka Lagi Laporan</span>
+                  </button>
+                ))}
 
               <div className="post-menu-divider" role="separator" />
             </>
@@ -167,155 +183,162 @@ export function PostMenu({ post }: { post: Post }) {
                 await navigator.clipboard.writeText(
                   `${location.origin}/posts/${post.localKey}`,
                 );
-                setStatus("Tautan disalin.");
+                showToast("Tautan disalin.", "success");
               } catch {
-                setStatus("Tautan tidak dapat disalin.");
+                showToast("Tautan tidak dapat disalin.", "error");
               }
               closeMenu();
             }}
           >
             <Link2 size={18} strokeWidth={1.8} />
-            <span>Copy Link</span>
+            <span>Salin Tautan</span>
           </button>
+
+          {perms.canFollow && (
+            <button
+              type="button"
+              className="post-menu-item"
+              onClick={() => {
+                setFollowing((current) =>
+                  current.includes(post.authorKey)
+                    ? current.filter((key) => key !== post.authorKey)
+                    : [...current, post.authorKey],
+                );
+                showToast(
+                  isFollowing
+                    ? "Berhenti mengikuti akun."
+                    : "Mulai mengikuti akun.",
+                  isFollowing ? "info" : "success",
+                );
+                closeMenu();
+              }}
+            >
+              {isFollowing ? (
+                <UserCheck size={18} strokeWidth={1.8} />
+              ) : (
+                <UserPlus size={18} strokeWidth={1.8} />
+              )}
+              <span>{isFollowing ? "Batal Ikuti" : "Ikuti"}</span>
+            </button>
+          )}
+
+          {perms.canHide && (
+            <button
+              type="button"
+              className="post-menu-item"
+              onClick={() => {
+                updatePost(post.localKey, (current) => ({
+                  ...current,
+                  hidden: true,
+                }));
+                showToast("Postingan disembunyikan dari beranda.", "info");
+                closeMenu();
+              }}
+            >
+              <EyeOff size={18} strokeWidth={1.8} />
+              <span>Sembunyikan</span>
+            </button>
+          )}
 
           <button
             type="button"
             className="post-menu-item"
             onClick={() => {
-              setFollowing((current) =>
-                current.includes(post.authorKey)
-                  ? current.filter((key) => key !== post.authorKey)
-                  : [...current, post.authorKey],
-              );
-              setStatus(
-                isFollowing
-                  ? "Berhenti mengikuti akun."
-                  : "Mulai mengikuti akun.",
-              );
-              closeMenu();
-            }}
-          >
-            {isFollowing ? (
-              <UserCheck size={18} strokeWidth={1.8} />
-            ) : (
-              <UserPlus size={18} strokeWidth={1.8} />
-            )}
-            <span>{isFollowing ? "Unfollow" : "Follow"}</span>
-          </button>
-
-          <button
-            type="button"
-            className="post-menu-item"
-            onClick={() => {
-              updatePost(post.localKey, (current) => ({
-                ...current,
-                hidden: true,
-              }));
-              closeMenu();
-            }}
-          >
-            <EyeOff size={18} strokeWidth={1.8} />
-            <span>Hide</span>
-          </button>
-
-          <button
-            type="button"
-            className="post-menu-item"
-            onClick={() => {
+              const wasSaved = Boolean(post.saved);
               updatePost(post.localKey, (current) => ({
                 ...current,
                 saved: !current.saved,
               }));
-              setStatus(
-                post.saved
-                  ? "Postingan dihapus dari simpanan."
-                  : "Postingan disimpan di aktivitas pribadi.",
+              showToast(
+                wasSaved
+                  ? "Dihapus dari simpanan."
+                  : "Disimpan di tab Tersimpan.",
+                wasSaved ? "info" : "success",
               );
               closeMenu();
             }}
           >
             <Bookmark size={18} strokeWidth={1.8} />
-            <span>{post.saved ? "Unsave" : "Save"}</span>
+            <span>{post.saved ? "Hapus Simpanan" : "Simpan"}</span>
           </button>
 
-          <div className="post-menu-divider" role="separator" />
+          {perms.hasDangerSection && (
+            <>
+              <div className="post-menu-divider" role="separator" />
 
-          <button
-            type="button"
-            className="post-menu-item post-menu-item--danger"
-            onClick={() => {
-              setPosts((current) =>
-                current.map((item) =>
-                  item.authorKey === post.authorKey
-                    ? { ...item, hidden: true }
-                    : item,
-                ),
-              );
-              setStatus("Akun dibisukan dari beranda.");
-              closeMenu();
-            }}
-          >
-            <VolumeX size={18} strokeWidth={1.8} />
-            <span>Mute</span>
-          </button>
+              {perms.canMute && (
+                <button
+                  type="button"
+                  className="post-menu-item post-menu-item--danger"
+                  onClick={() => {
+                    setPosts((current) =>
+                      current.map((item) =>
+                        item.authorKey === post.authorKey
+                          ? { ...item, hidden: true }
+                          : item,
+                      ),
+                    );
+                    showToast("Akun dibisukan dari beranda.", "info");
+                    closeMenu();
+                  }}
+                >
+                  <VolumeX size={18} strokeWidth={1.8} />
+                  <span>Bisukan Akun</span>
+                </button>
+              )}
 
-          <button
-            type="button"
-            className="post-menu-item post-menu-item--danger"
-            onClick={() => {
-              setDialog("report");
-              closeMenu();
-            }}
-          >
-            <AlertCircle size={18} strokeWidth={1.8} />
-            <span>Report</span>
-          </button>
+              {perms.canReport && (
+                <button
+                  type="button"
+                  className="post-menu-item post-menu-item--danger"
+                  onClick={() => {
+                    setDialog("report");
+                    closeMenu();
+                  }}
+                >
+                  <AlertCircle size={18} strokeWidth={1.8} />
+                  <span>Laporkan</span>
+                </button>
+              )}
 
-          <button
-            type="button"
-            className="post-menu-item post-menu-item--danger"
-            onClick={() => {
-              setPosts((current) =>
-                current.map((item) =>
-                  item.authorKey === post.authorKey
-                    ? { ...item, hidden: true }
-                    : item,
-                ),
-              );
-              setStatus("Akun telah diblokir.");
-              closeMenu();
-            }}
-          >
-            <Ban size={18} strokeWidth={1.8} />
-            <span>Block</span>
-          </button>
+              {perms.canBlock && (
+                <button
+                  type="button"
+                  className="post-menu-item post-menu-item--danger"
+                  onClick={() => {
+                    setPosts((current) =>
+                      current.map((item) =>
+                        item.authorKey === post.authorKey
+                          ? { ...item, hidden: true }
+                          : item,
+                      ),
+                    );
+                    showToast("Akun telah diblokir.", "info");
+                    closeMenu();
+                  }}
+                >
+                  <Ban size={18} strokeWidth={1.8} />
+                  <span>Blokir Akun</span>
+                </button>
+              )}
 
-          <button
-            type="button"
-            className="post-menu-item post-menu-item--danger"
-            onClick={() => {
-              setDialog("remove");
-              closeMenu();
-            }}
-          >
-            <Trash2 size={18} strokeWidth={1.8} />
-            <span>Delete</span>
-          </button>
+              {perms.canDelete && (
+                <button
+                  type="button"
+                  className="post-menu-item post-menu-item--danger"
+                  onClick={() => {
+                    setDialog("remove");
+                    closeMenu();
+                  }}
+                >
+                  <Trash2 size={18} strokeWidth={1.8} />
+                  <span>Hapus</span>
+                </button>
+              )}
+            </>
+          )}
         </div>
       </details>
-
-      {status && (
-        <div role="status" className="feedback-toast">
-          {status}
-          <Button
-            variant="ghost"
-            aria-label="Tutup pesan"
-            onClick={() => setStatus("")}
-          >
-            ×
-          </Button>
-        </div>
-      )}
 
       {dialog && (
         <Dialog
@@ -337,12 +360,14 @@ export function PostMenu({ post }: { post: Post }) {
                   Batal
                 </Button>
                 <Button
+                  variant="danger"
                   onClick={() => {
                     updatePost(post.localKey, (current) => ({
                       ...current,
                       isDeleted: true,
                     }));
                     setDialog(null);
+                    showToast("Postingan berhasil diturunkan.", "success");
                   }}
                 >
                   Turunkan postingan
@@ -355,25 +380,30 @@ export function PostMenu({ post }: { post: Post }) {
               onSubmit={(e) => {
                 e.preventDefault();
                 setDialog(null);
-                setStatus(
-                  "Laporan penyalahgunaan tersimpan sebagai simulasi. Belum dikirim ke pengelola.",
+                showToast(
+                  "Laporan penyalahgunaan dicatat (simulasi demo).",
+                  "success",
                 );
                 setDetails("");
               }}
             >
-              <label>
-                Alasan laporan
-                <select
+              <div className="field-block">
+                <span className="field-label">Alasan laporan</span>
+                <SelectMenu
+                  ariaLabel="Alasan laporan"
+                  align="left"
+                  fullWidth
                   value={reason}
-                  onChange={(e) => setReason(e.target.value)}
-                >
-                  <option value="SPAM">Spam</option>
-                  <option value="HOAX">Informasi menyesatkan</option>
-                  <option value="HATE_SPEECH">Ujaran kebencian</option>
-                  <option value="PORNOGRAPHY">Konten seksual</option>
-                  <option value="OTHER">Lainnya</option>
-                </select>
-              </label>
+                  onChange={setReason}
+                  options={[
+                    { value: "SPAM", label: "Spam" },
+                    { value: "HOAX", label: "Informasi menyesatkan" },
+                    { value: "HATE_SPEECH", label: "Ujaran kebencian" },
+                    { value: "PORNOGRAPHY", label: "Konten seksual" },
+                    { value: "OTHER", label: "Lainnya" },
+                  ]}
+                />
+              </div>
               <label>
                 Rincian tambahan
                 <textarea

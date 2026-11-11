@@ -89,7 +89,7 @@ export function TopicSelectorModal({
             <input
               type="text"
               autoFocus
-              placeholder="Search Topic..."
+              placeholder="Cari topik..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="selector-search-input"
@@ -116,7 +116,7 @@ export function TopicSelectorModal({
               >
                 <span className="selector-item-name">{topic.name}</span>
                 <span className="selector-item-meta">
-                  {topic.isTrending && <span className="selector-trending-badge">Trending</span>}
+                  {topic.isTrending && <span className="selector-trending-badge">Ramai</span>}
                   {isSelected && <Check size={16} className="selector-check-icon" />}
                 </span>
               </button>

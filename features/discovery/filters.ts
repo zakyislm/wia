@@ -1,5 +1,5 @@
 import type { Person, Post, ReportStatus } from "@/types/models";
-import { resolutionResult } from "@/lib/validation";
+import { resolutionResult, shouldAutoCloseAction } from "@/lib/validation";
 
 export interface SearchFilters {
   query: string;
@@ -25,8 +25,29 @@ export function jakartaDay(timestamp: number) {
 }
 
 export function getEffectiveReportStatus(post: Post): ReportStatus {
+  if (
+    post.reportStatus === "completed" ||
+    post.reportStatus === "closed_internal"
+  ) {
+    return post.reportStatus;
+  }
+  const actionReply = [...post.replies]
+    .reverse()
+    .find((r) => r.is_action_taken);
+  if (actionReply) {
+    const ups =
+      (actionReply.upvotesCount ?? 0) + (actionReply.vote === "UP" ? 1 : 0);
+    const downs =
+      (actionReply.downvotesCount ?? 0) +
+      (actionReply.vote === "DOWN" ? 1 : 0);
+    if (shouldAutoCloseAction(ups, downs)) {
+      return actionReply.actionRole === "INTERNAL"
+        ? "closed_internal"
+        : "completed";
+    }
+    return "in_progress";
+  }
   if (post.reportStatus) return post.reportStatus;
-  if (post.replies.some((r) => r.is_action_taken)) return "in_progress";
   const latest = post.resolutions.at(-1);
   if (latest) {
     const res = resolutionResult(latest);

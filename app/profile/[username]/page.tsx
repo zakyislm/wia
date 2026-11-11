@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { Profile } from "@/features/profile/Profile";
+import { PageSkeleton } from "@/components/ui/Skeleton";
 
 async function Content({
   params,
@@ -16,7 +17,7 @@ export default function Page({
   params: Promise<{ username: string }>;
 }) {
   return (
-    <Suspense fallback={<p role="status">Memuat profil…</p>}>
+    <Suspense fallback={<PageSkeleton variant="profile" />}>
       <Content params={params} />
     </Suspense>
   );

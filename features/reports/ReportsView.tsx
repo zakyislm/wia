@@ -1,19 +1,25 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, Search, SlidersHorizontal, X } from "lucide-react";
+import { useMemo, useState } from "react";
 import { useDemo } from "@/features/auth/DemoProvider";
 import { ProductShell } from "@/components/layout/ProductShell";
+import {
+  DirectoryToolbar,
+  type DirectoryToolbarOption,
+} from "@/components/ui/DirectoryToolbar";
 import { PostCard } from "@/features/posts/PostCard";
+import {
+  LazyLoadSentinel,
+  useLazySlice,
+  useSubtabTransition,
+} from "@/components/ui/LazyFeed";
+import { SkeletonPostList } from "@/components/ui/Skeleton";
 import { getEffectiveReportStatus } from "@/features/discovery/filters";
 import type { Person, Post, Role } from "@/types/models";
 
 export type ReportAuthorityFilter = "all" | "government" | "internal";
 export type ReportStatusTab = "all" | "waiting" | "in_progress" | "completed";
 
-export interface FilterOption<T extends string> {
-  id: T;
-  label: string;
-}
+export type FilterOption<T extends string> = DirectoryToolbarOption<T>;
 
 const AUTHORITY_OPTIONS: FilterOption<ReportAuthorityFilter>[] = [
   { id: "all", label: "Semua" },
@@ -156,32 +162,6 @@ export function ReportDirectoryShell<T extends string>({
   emptyFilteredMessage?: string;
   emptyIdleMessage?: string;
 }) {
-  const [filterMenuOpen, setFilterMenuOpen] = useState(false);
-  const filterMenuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!filterMenuOpen) return;
-    function handlePointerDown(event: MouseEvent) {
-      if (
-        filterMenuRef.current &&
-        !filterMenuRef.current.contains(event.target as Node)
-      ) {
-        setFilterMenuOpen(false);
-      }
-    }
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setFilterMenuOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handlePointerDown);
-    window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [filterMenuOpen]);
-
   const counts = useMemo(
     () => ({
       all: baseReports.length,
@@ -202,10 +182,31 @@ export function ReportDirectoryShell<T extends string>({
     [baseReports, statusTab],
   );
 
-  const activeFilterLabel =
-    filterOptions.find((opt) => opt.id === filterValue)?.label ??
-    filterOptions[0]?.label ??
-    "Semua";
+  const {
+    visibleItems: renderedReports,
+    hasMore,
+    isLoadingMore,
+    sentinelRef,
+  } = useLazySlice(visibleReports, {
+    initialCount: 3,
+    batchSize: 4,
+    resetKey: `${query}:${String(filterValue)}:${statusTab}`,
+  });
+
+  const subtabKey = `${String(filterValue)}:${statusTab}`;
+  const { isSubtabLoading, triggerSubtabSkeleton } =
+    useSubtabTransition(subtabKey);
+
+  function handleFilterChange(next: T) {
+    triggerSubtabSkeleton(`${String(next)}:${statusTab}`);
+    onFilterChange(next);
+  }
+
+  function handleStatusTabChange(next: ReportStatusTab) {
+    triggerSubtabSkeleton(`${String(filterValue)}:${next}`);
+    onStatusTabChange(next);
+  }
+
   const defaultFilter = filterOptions[0]?.id;
   const isFiltered =
     Boolean(query) ||
@@ -214,124 +215,62 @@ export function ReportDirectoryShell<T extends string>({
 
   return (
     <section className="feed-surface laporan-surface">
-      <div className="chat-list-top">
-        <div className="chat-search-box">
-          <Search size={16} className="chat-search-icon" />
-          <input
-            type="text"
-            aria-label={searchPlaceholder}
-            placeholder={searchPlaceholder}
-            value={query}
-            onChange={(e) => onQueryChange(e.target.value)}
-          />
-          {query && (
-            <button
-              type="button"
-              className="quick-search-clear-btn"
-              aria-label="Hapus pencarian"
-              onClick={() => onQueryChange("")}
-            >
-              <X size={14} />
-            </button>
-          )}
-        </div>
-        <div className="laporan-filter-wrap" ref={filterMenuRef}>
-          <button
-            type="button"
-            className={`chat-compose-btn laporan-filter-btn ${defaultFilter !== undefined && filterValue !== defaultFilter ? "is-active" : ""}`.trim()}
-            aria-label={`${filterAriaLabel}: ${activeFilterLabel}`}
-            aria-haspopup="menu"
-            aria-expanded={filterMenuOpen}
-            title={`Filter: ${activeFilterLabel}`}
-            onClick={() => setFilterMenuOpen((prev) => !prev)}
-          >
-            <SlidersHorizontal size={18} strokeWidth={1.8} />
-            {defaultFilter !== undefined && filterValue !== defaultFilter && (
-              <span className="laporan-filter-dot" aria-hidden="true" />
-            )}
-          </button>
-
-          {filterMenuOpen && (
-            <div
-              className="profile-filter-menu laporan-filter-menu"
-              role="menu"
-              aria-label={filterAriaLabel}
-            >
-              {filterOptions.map((opt) => {
-                const selected = filterValue === opt.id;
-                return (
-                  <button
-                    key={opt.id}
-                    type="button"
-                    role="menuitemradio"
-                    aria-checked={selected}
-                    className={`profile-filter-option ${selected ? "is-selected" : ""}`}
-                    onClick={() => {
-                      onFilterChange(opt.id);
-                      setFilterMenuOpen(false);
-                    }}
-                  >
-                    <span>{opt.label}</span>
-                    {selected && <Check size={16} strokeWidth={2.2} />}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="chat-subtabs-wrap">
-        <div
-          className="notif-segmented-control chat-segmented-control"
-          role="tablist"
-          aria-label="Status laporan"
-        >
-          {STATUS_TABS.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              role="tab"
-              aria-selected={statusTab === tab.id}
-              className={`notif-segment-btn ${statusTab === tab.id ? "active" : ""}`}
-              onClick={() => onStatusTabChange(tab.id)}
-            >
-              <span>{tab.label}</span>
-              {counts[tab.id] > 0 && (
-                <span className="notif-count-badge">{counts[tab.id]}</span>
-              )}
-            </button>
-          ))}
-        </div>
-      </div>
+      <DirectoryToolbar
+        query={query}
+        onQueryChange={onQueryChange}
+        searchPlaceholder={searchPlaceholder}
+        filterValue={filterValue}
+        onFilterChange={handleFilterChange}
+        filterOptions={filterOptions}
+        filterAriaLabel={filterAriaLabel}
+        tabs={STATUS_TABS.map((tab) => ({
+          id: tab.id,
+          label: tab.label,
+          count: counts[tab.id],
+        }))}
+        activeTab={statusTab}
+        onTabChange={handleStatusTabChange}
+        tabsAriaLabel="Status laporan"
+      />
 
       {scopeNote && <p className="tugas-scope-bar">{scopeNote}</p>}
 
       <section className="explore-feed-section" aria-label="Daftar laporan">
-        {visibleReports.map((post) => (
-          <PostCard key={post.localKey} post={post} />
-        ))}
+        {isSubtabLoading ? (
+          <SkeletonPostList count={3} isReport />
+        ) : (
+          <>
+            {renderedReports.map((post) => (
+              <PostCard key={post.localKey} post={post} />
+            ))}
+            <LazyLoadSentinel
+              hasMore={hasMore}
+              isLoadingMore={isLoadingMore}
+              sentinelRef={sentinelRef}
+            />
 
-        {visibleReports.length === 0 && (
-          <div className="empty-state">
-            <h2>{emptyTitle}</h2>
-            <p>{isFiltered ? emptyFilteredMessage : emptyIdleMessage}</p>
-            {isFiltered && (
-              <button
-                type="button"
-                className="button button--secondary"
-                onClick={() => {
-                  onQueryChange("");
-                  if (defaultFilter !== undefined) {
-                    onFilterChange(defaultFilter);
-                  }
-                  onStatusTabChange("all");
-                }}
-              >
-                Atur ulang filter
-              </button>
+            {visibleReports.length === 0 && (
+              <div className="empty-state">
+                <h2>{emptyTitle}</h2>
+                <p>{isFiltered ? emptyFilteredMessage : emptyIdleMessage}</p>
+                {isFiltered && (
+                  <button
+                    type="button"
+                    className="button button--secondary"
+                    onClick={() => {
+                      onQueryChange("");
+                      if (defaultFilter !== undefined) {
+                        handleFilterChange(defaultFilter);
+                      }
+                      handleStatusTabChange("all");
+                    }}
+                  >
+                    Atur ulang filter
+                  </button>
+                )}
+              </div>
             )}
-          </div>
+          </>
         )}
       </section>
     </section>

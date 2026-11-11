@@ -271,7 +271,7 @@ export function SearchControls({
                 ))}
                 <fieldset>
                   <legend>
-                    {timeline ? "Tanggal Closed (WIB)" : "Tanggal unggah (WIB)"}
+                    {timeline ? "Tanggal selesai (WIB)" : "Tanggal unggah (WIB)"}
                   </legend>
                   <div className="filter-dates">
                     <label>

@@ -23,7 +23,7 @@ export function DraftsView({
   onCreateNew,
   isActive = true,
 }: DraftsViewProps) {
-  const { user } = useDemo();
+  const { user, showToast } = useDemo();
   const [drafts, setDrafts] = useState<ComposerDraft[]>(() => loadDrafts());
   const [searchQuery, setSearchQuery] = useState("");
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
@@ -52,6 +52,7 @@ export function DraftsView({
     const updated = deleteDraft(id);
     setDrafts(updated);
     setActiveMenuId(null);
+    showToast("Draf dihapus.", "info");
   }
 
   return (
@@ -66,7 +67,7 @@ export function DraftsView({
         >
           <ChevronLeft size={20} strokeWidth={2} />
         </button>
-        <h2 className="composer-drafts-title">Drafts</h2>
+        <h2 className="composer-drafts-title">Draf</h2>
         <div className="composer-drafts-header-spacer" aria-hidden="true" />
       </div>
 
@@ -77,7 +78,7 @@ export function DraftsView({
           <input
             type="text"
             className="composer-drafts-search-input"
-            placeholder="Cari draft..."
+            placeholder="Cari draf..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -101,7 +102,7 @@ export function DraftsView({
           <span className="composer-drafts-create-icon">
             <Plus size={18} strokeWidth={2} />
           </span>
-          <span className="composer-drafts-create-text">Create new</span>
+          <span className="composer-drafts-create-text">Buat baru</span>
         </button>
 
         <div className="composer-drafts-list">
@@ -109,7 +110,7 @@ export function DraftsView({
             const previewText =
               draft.title.trim() ||
               draft.content.trim() ||
-              "Draft tanpa judul";
+              "Draf tanpa judul";
 
             return (
               <div
@@ -138,7 +139,7 @@ export function DraftsView({
                       e.stopPropagation();
                       setActiveMenuId(activeMenuId === draft.id ? null : draft.id);
                     }}
-                    aria-label="Opsi draft"
+                    aria-label="Opsi draf"
                   >
                     <MoreHorizontal size={18} />
                   </button>
@@ -151,7 +152,7 @@ export function DraftsView({
                         onClick={(e) => handleDelete(draft.id, e)}
                       >
                         <Trash2 size={14} />
-                        <span>Hapus draft</span>
+                        <span>Hapus draf</span>
                       </button>
                     </div>
                   )}
@@ -164,8 +165,8 @@ export function DraftsView({
             <div className="composer-drafts-empty">
               <p>
                 {searchQuery
-                  ? "Tidak ada draft yang cocok dengan pencarian."
-                  : "Belum ada draft tersimpan."}
+                  ? "Tidak ada draf yang cocok dengan pencarianmu."
+                  : "Belum ada draf tersimpan."}
               </p>
             </div>
           )}

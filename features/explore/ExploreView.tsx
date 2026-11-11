@@ -8,6 +8,7 @@ import { ProductShell } from "@/components/layout/ProductShell";
 import { Avatar } from "@/components/ui/Avatar";
 import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { PostCard } from "@/features/posts/PostCard";
+import { LazyLoadSentinel, useLazySlice } from "@/components/ui/LazyFeed";
 import { filterQuickSearchPeople } from "@/components/search/QuickSearchModal";
 import {
   ExploreTopicsBar,
@@ -16,37 +17,37 @@ import {
 
 const trendingTopics = [
   {
-    category: "Trending di Indonesia",
+    category: "Ramai di Indonesia",
     topic: "#Jokowi",
     count: "48,2 rb postingan",
     query: "#Jokowi",
   },
   {
-    category: "Trending di Jawa Barat",
+    category: "Ramai di Jawa Barat",
     topic: "#TrotoarRusak",
     count: "14,1 rb postingan",
     query: "#TrotoarRusak",
   },
   {
-    category: "Trending di DKI Jakarta",
+    category: "Ramai di DKI Jakarta",
     topic: "#IndonesiaMaju",
     count: "9.350 postingan",
     query: "#IndonesiaMaju",
   },
   {
-    category: "Trending di Kota Bandung",
+    category: "Ramai di Kota Bandung",
     topic: "#AksesAman",
     count: "6.120 postingan",
     query: "#AksesAman",
   },
   {
-    category: "Trending di Sukajadi",
+    category: "Ramai di Sukajadi",
     topic: "#Kebersihan",
     count: "5.410 postingan",
     query: "#Kebersihan",
   },
   {
-    category: "Trending di Pulau Jawa",
+    category: "Ramai di Pulau Jawa",
     topic: "#RuangTerbukaHijau",
     count: "3.240 postingan",
     query: "#RuangTerbukaHijau",
@@ -73,12 +74,7 @@ export function ExploreView() {
     const matchingAuthorKeys = new Set(matchedPeople.map((p) => p.localKey));
     return valid.filter((p) => {
       if (q.startsWith("@")) {
-        const displayedPeople = useMemo(
-    () => (queryParam.trim() ? matchedPeople.slice(0, 6) : []),
-    [queryParam, matchedPeople],
-  );
-
-  return (
+        return (
           p.content.toLowerCase().includes(q) ||
           (!p.anonymous && matchingAuthorKeys.has(p.authorKey))
         );
@@ -99,6 +95,17 @@ export function ExploreView() {
     [queryParam, matchedPeople],
   );
 
+  const {
+    visibleItems: visibleFeedPosts,
+    hasMore,
+    isLoadingMore,
+    sentinelRef,
+  } = useLazySlice(feedPosts, {
+    initialCount: 4,
+    batchSize: 4,
+    resetKey: queryParam,
+  });
+
   return (
     <ProductShell active="explore" hideHeader searchQuery={queryParam}>
       <section className="feed-surface explore-surface">
@@ -108,7 +115,7 @@ export function ExploreView() {
         {!queryParam ? (
           <section className="explore-section">
               <div className="explore-section-header">
-                <h2 className="explore-section-title">Highlight</h2>
+                <h2 className="explore-section-title">Sorotan</h2>
               </div>
               <div className="explore-trending-list">
                 {trendingTopics.map((trend, idx) => (
@@ -155,7 +162,7 @@ export function ExploreView() {
           </div>
         )}
 
-        <section className="explore-feed-section" aria-label="Feed Jelajah">
+        <section className="explore-feed-section" aria-label="Linimasa Jelajah">
           {displayedPeople.length > 0 && (
             <div className="explore-people-results">
               {displayedPeople.map((person) => (
@@ -177,9 +184,14 @@ export function ExploreView() {
             </div>
           )}
 
-          {feedPosts.map((post) => (
+          {visibleFeedPosts.map((post) => (
             <PostCard key={post.localKey} post={post} />
           ))}
+          <LazyLoadSentinel
+            hasMore={hasMore}
+            isLoadingMore={isLoadingMore}
+            sentinelRef={sentinelRef}
+          />
 
           {feedPosts.length === 0 && displayedPeople.length === 0 && (
             <div className="empty-state">

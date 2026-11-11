@@ -1,6 +1,6 @@
 /* eslint-disable @next/next/no-img-element -- Session-only blob URLs cannot use server image optimization. */
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Download, X } from "lucide-react";
 import { Dialog } from "@/components/ui/Dialog";
 
@@ -15,43 +15,140 @@ export function createMediaPreviewUrl(file: File): string {
   return isVid ? `${url}#video` : url;
 }
 
-export function MediaAttachmentPreview({
-  media,
-  onRemove,
-  altPrefix = "Lampiran",
+function LazyGalleryImage({
+  src,
+  alt,
+  buttonClassName,
+  ariaLabel,
+  onClick,
 }: {
-  media: string[];
-  onRemove: (src: string, index: number) => void;
-  altPrefix?: string;
+  src: string;
+  alt: string;
+  buttonClassName: string;
+  ariaLabel: string;
+  onClick: (e: React.MouseEvent<HTMLButtonElement>) => void;
 }) {
-  if (media.length === 0) return null;
-  const isMulti = media.length > 1;
+  const [loadedSrc, setLoadedSrc] = useState<string | null>(() =>
+    src.startsWith("blob:") || src.startsWith("data:") ? src : null,
+  );
+  const isLoaded = loadedSrc === src;
 
   return (
-    <div
-      className={`media-attachment-list ${isMulti ? "media-gallery--multi media-attachment-list--multi" : "media-attachment-list--single"}`}
+    <button
+      type="button"
+      className={`${buttonClassName} ${isLoaded ? "" : "is-skeleton"}`.trim()}
+      aria-label={ariaLabel}
+      onClick={onClick}
     >
-      {media.map((src, index) => (
-        <figure
-          key={src}
-          className={`media-attachment-card ${isMulti ? "media-attachment-card--multi" : "media-attachment-card--single"}`}
+      <img
+        src={src}
+        alt={alt}
+        loading="lazy"
+        decoding="async"
+        className={`media-lazy-img ${isLoaded ? "is-loaded" : ""}`.trim()}
+        ref={(el) => {
+          if (el && el.complete && el.naturalWidth > 0 && loadedSrc !== src) {
+            queueMicrotask(() => setLoadedSrc((prev) => (prev === src ? prev : src)));
+          }
+        }}
+        onLoad={() => setLoadedSrc(src)}
+        onError={() => setLoadedSrc(src)}
+      />
+    </button>
+  );
+}
+
+/** Shared horizontal carousel state, arrow navigation, and vertical-wheel-to-X scrolling. */
+function useHorizontalCarousel(enabled: boolean, itemCount: number) {
+  const [scrollState, setScrollState] = useState({ left: false, right: false });
+  const scrollerRef = useRef<HTMLDivElement>(null);
+
+  const syncScrollButtons = useCallback(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    setScrollState({
+      left: el.scrollLeft > 4,
+      right: el.scrollLeft + el.clientWidth < el.scrollWidth - 4,
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!enabled) return;
+    syncScrollButtons();
+    window.addEventListener("resize", syncScrollButtons);
+    return () => window.removeEventListener("resize", syncScrollButtons);
+  }, [enabled, itemCount, syncScrollButtons]);
+
+  useEffect(() => {
+    if (!enabled) return;
+    const el = scrollerRef.current;
+    if (!el) return;
+
+    function handleWheel(event: WheelEvent) {
+      if (Math.abs(event.deltaY) < Math.abs(event.deltaX) || event.deltaY === 0) {
+        return;
+      }
+      const maxScroll = el!.scrollWidth - el!.clientWidth;
+      if (maxScroll <= 1) return;
+      const atStart = el!.scrollLeft <= 0 && event.deltaY < 0;
+      const atEnd = el!.scrollLeft >= maxScroll - 1 && event.deltaY > 0;
+      if (atStart || atEnd) return;
+      event.preventDefault();
+      el!.scrollLeft = Math.min(
+        maxScroll,
+        Math.max(0, el!.scrollLeft + event.deltaY),
+      );
+    }
+
+    el.addEventListener("wheel", handleWheel, { passive: false });
+    return () => el.removeEventListener("wheel", handleWheel);
+  }, [enabled, itemCount]);
+
+  function scrollCarousel(direction: -1 | 1, event: React.MouseEvent) {
+    event.stopPropagation();
+    const el = scrollerRef.current;
+    if (!el) return;
+    el.scrollBy({
+      left: direction * Math.max(160, el.clientWidth * 0.68),
+      behavior: "smooth",
+    });
+  }
+
+  return { scrollerRef, scrollState, syncScrollButtons, scrollCarousel };
+}
+
+function CarouselNavButtons({
+  canPrev,
+  canNext,
+  onScroll,
+}: {
+  canPrev: boolean;
+  canNext: boolean;
+  onScroll: (direction: -1 | 1, event: React.MouseEvent) => void;
+}) {
+  return (
+    <>
+      {canPrev && (
+        <button
+          type="button"
+          className="media-carousel-nav media-carousel-nav--prev"
+          aria-label="Foto sebelumnya"
+          onClick={(e) => onScroll(-1, e)}
         >
-          {isVideoMedia(src) ? (
-            <video src={src} controls muted playsInline />
-          ) : (
-            <img src={src} alt={`${altPrefix} ${index + 1}`} />
-          )}
-          <button
-            type="button"
-            className="media-attachment-remove"
-            aria-label={`Hapus media ${index + 1}`}
-            onClick={() => onRemove(src, index)}
-          >
-            <X size={15} strokeWidth={2.2} />
-          </button>
-        </figure>
-      ))}
-    </div>
+          <ChevronLeft size={18} strokeWidth={2} />
+        </button>
+      )}
+      {canNext && (
+        <button
+          type="button"
+          className="media-carousel-nav media-carousel-nav--next"
+          aria-label="Foto berikutnya"
+          onClick={(e) => onScroll(1, e)}
+        >
+          <ChevronRight size={18} strokeWidth={2} />
+        </button>
+      )}
+    </>
   );
 }
 
@@ -82,6 +179,237 @@ export async function downloadMediaFile(src: string, index: number) {
   }
 }
 
+/** Shared fullscreen lightbox with pointer-origin zoom in/out and arrow navigation. */
+function MediaLightbox({
+  photos,
+  activeIndex,
+  altPrefix,
+  onClose,
+  onChangeIndex,
+}: {
+  photos: string[];
+  activeIndex: number | null;
+  altPrefix: string;
+  onClose: () => void;
+  onChangeIndex: React.Dispatch<React.SetStateAction<number | null>>;
+}) {
+  const [zoomState, setZoomState] = useState<{
+    index: number;
+    origin: { x: number; y: number };
+  } | null>(null);
+  const stagePointerDownOnBackdropRef = useRef(false);
+
+  const zoomed = activeIndex !== null && zoomState?.index === activeIndex;
+  const zoomOrigin = zoomState?.origin ?? { x: 50, y: 50 };
+
+  const handleClose = useCallback(() => {
+    setZoomState(null);
+    onClose();
+  }, [onClose]);
+
+  useEffect(() => {
+    if (activeIndex === null) return;
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "ArrowRight" && photos.length > 1) {
+        onChangeIndex((prev) =>
+          prev === null ? null : (prev + 1) % photos.length,
+        );
+      } else if (e.key === "ArrowLeft" && photos.length > 1) {
+        onChangeIndex((prev) =>
+          prev === null ? null : (prev - 1 + photos.length) % photos.length,
+        );
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [activeIndex, photos.length, onChangeIndex]);
+
+  const activePhoto =
+    activeIndex !== null ? (photos[activeIndex] ?? null) : null;
+  if (activePhoto === null || activeIndex === null) return null;
+
+  return (
+    <Dialog
+      title={`Pratinjau ${altPrefix} ${activeIndex + 1}`}
+      onClose={handleClose}
+      hideHeader
+      className="media-lightbox-dialog"
+    >
+      <div
+        className="media-lightbox-stage"
+        onPointerDown={(e) => {
+          e.stopPropagation();
+          stagePointerDownOnBackdropRef.current = e.target === e.currentTarget;
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          const shouldClose =
+            e.target === e.currentTarget &&
+            stagePointerDownOnBackdropRef.current;
+          stagePointerDownOnBackdropRef.current = false;
+          if (shouldClose) {
+            handleClose();
+          }
+        }}
+      >
+        <div
+          className="media-lightbox-actions"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            type="button"
+            className="media-lightbox-btn"
+            aria-label="Tutup gambar"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleClose();
+            }}
+          >
+            <X size={20} strokeWidth={2} />
+          </button>
+          <button
+            type="button"
+            className="media-lightbox-btn"
+            aria-label="Unduh gambar"
+            onClick={(e) => {
+              e.stopPropagation();
+              void downloadMediaFile(activePhoto, activeIndex);
+            }}
+          >
+            <Download size={19} strokeWidth={2} />
+          </button>
+        </div>
+
+        <img
+          src={activePhoto}
+          alt={`${altPrefix} ${activeIndex + 1}`}
+          className={`media-lightbox-img ${zoomed ? "is-zoomed" : ""}`}
+          style={
+            zoomed
+              ? { transformOrigin: `${zoomOrigin.x}% ${zoomOrigin.y}%` }
+              : undefined
+          }
+          onClick={(e) => {
+            e.stopPropagation();
+            if (!zoomed) {
+              const rect = e.currentTarget.getBoundingClientRect();
+              const x = Math.min(
+                100,
+                Math.max(
+                  0,
+                  ((e.clientX - rect.left) / Math.max(1, rect.width)) * 100,
+                ),
+              );
+              const y = Math.min(
+                100,
+                Math.max(
+                  0,
+                  ((e.clientY - rect.top) / Math.max(1, rect.height)) * 100,
+                ),
+              );
+              setZoomState({ index: activeIndex, origin: { x, y } });
+            } else {
+              setZoomState(null);
+            }
+          }}
+        />
+      </div>
+    </Dialog>
+  );
+}
+
+export function MediaAttachmentPreview({
+  media,
+  onRemove,
+  altPrefix = "Lampiran",
+}: {
+  media: string[];
+  onRemove: (src: string, index: number) => void;
+  altPrefix?: string;
+}) {
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const isMulti = media.length > 1;
+  const photos = media.filter((src) => !isVideoMedia(src));
+  const { scrollerRef, scrollState, syncScrollButtons, scrollCarousel } =
+    useHorizontalCarousel(isMulti, media.length);
+
+  if (media.length === 0) return null;
+
+  let photoCursor = 0;
+  const listNode = (
+    <div
+      ref={isMulti ? scrollerRef : undefined}
+      className={`media-attachment-list ${isMulti ? "media-gallery--multi media-attachment-list--multi" : "media-attachment-list--single"}`}
+      onScroll={isMulti ? syncScrollButtons : undefined}
+    >
+      {media.map((src, index) => {
+        const isVideo = isVideoMedia(src);
+        const photoIndex = isVideo ? -1 : photoCursor++;
+        return (
+          <figure
+            key={`${src}-${index}`}
+            className={`media-attachment-card ${isMulti ? "media-attachment-card--multi" : "media-attachment-card--single"}`}
+          >
+            {isVideo ? (
+              <video src={src} controls muted playsInline preload="metadata" />
+            ) : (
+              <LazyGalleryImage
+                src={src}
+                alt={`${altPrefix} ${index + 1}`}
+                buttonClassName="media-attachment-trigger"
+                ariaLabel={`Lihat penuh ${altPrefix} ${index + 1}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActiveIndex(photoIndex);
+                }}
+              />
+            )}
+            <button
+              type="button"
+              className="media-attachment-remove"
+              aria-label={`Hapus media ${index + 1}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove(src, index);
+              }}
+            >
+              <X size={15} strokeWidth={2.2} />
+            </button>
+          </figure>
+        );
+      })}
+    </div>
+  );
+
+  return (
+    <>
+      {isMulti ? (
+        <div
+          className="media-carousel-shell media-attachment-shell"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {listNode}
+          <CarouselNavButtons
+            canPrev={scrollState.left}
+            canNext={scrollState.right}
+            onScroll={scrollCarousel}
+          />
+        </div>
+      ) : (
+        listNode
+      )}
+
+      <MediaLightbox
+        photos={photos}
+        activeIndex={activeIndex}
+        altPrefix={altPrefix}
+        onClose={() => setActiveIndex(null)}
+        onChangeIndex={setActiveIndex}
+      />
+    </>
+  );
+}
+
 export function MediaGallery({
   media,
   altPrefix = "Foto",
@@ -92,79 +420,13 @@ export function MediaGallery({
   className?: string;
 }) {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
-  const [zoomed, setZoomed] = useState(false);
-  const [zoomOrigin, setZoomOrigin] = useState({ x: 50, y: 50 });
-  const [scrollState, setScrollState] = useState({ left: false, right: false });
-  const scrollerRef = useRef<HTMLDivElement>(null);
-  const stagePointerDownOnBackdropRef = useRef(false);
-
   const videos = media.filter((src) => isVideoMedia(src));
   const photos = media.filter((src) => !isVideoMedia(src));
   const isMultiPhotos = photos.length > 1;
-
-  function syncScrollButtons() {
-    const el = scrollerRef.current;
-    if (!el) return;
-    setScrollState({
-      left: el.scrollLeft > 4,
-      right: el.scrollLeft + el.clientWidth < el.scrollWidth - 4,
-    });
-  }
-
-  useEffect(() => {
-    if (!isMultiPhotos) return;
-    syncScrollButtons();
-    window.addEventListener("resize", syncScrollButtons);
-    return () => window.removeEventListener("resize", syncScrollButtons);
-  }, [isMultiPhotos, photos.length]);
-
-  useEffect(() => {
-    if (activeIndex === null) return;
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === "ArrowRight" && photos.length > 1) {
-        setZoomed(false);
-        setZoomOrigin({ x: 50, y: 50 });
-        setActiveIndex((prev) =>
-          prev === null ? null : (prev + 1) % photos.length,
-        );
-      } else if (e.key === "ArrowLeft" && photos.length > 1) {
-        setZoomed(false);
-        setZoomOrigin({ x: 50, y: 50 });
-        setActiveIndex((prev) =>
-          prev === null ? null : (prev - 1 + photos.length) % photos.length,
-        );
-      }
-    }
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activeIndex, photos.length]);
+  const { scrollerRef, scrollState, syncScrollButtons, scrollCarousel } =
+    useHorizontalCarousel(isMultiPhotos, photos.length);
 
   if (media.length === 0) return null;
-
-  function openLightbox(index: number) {
-    setZoomed(false);
-    setZoomOrigin({ x: 50, y: 50 });
-    setActiveIndex(index);
-  }
-
-  function closeLightbox() {
-    setZoomed(false);
-    setZoomOrigin({ x: 50, y: 50 });
-    setActiveIndex(null);
-  }
-
-  function scrollCarousel(direction: -1 | 1, e: React.MouseEvent) {
-    e.stopPropagation();
-    const el = scrollerRef.current;
-    if (!el) return;
-    el.scrollBy({
-      left: direction * Math.max(160, el.clientWidth * 0.68),
-      behavior: "smooth",
-    });
-  }
-
-  const activePhoto =
-    activeIndex !== null ? (photos[activeIndex] ?? null) : null;
 
   return (
     <div
@@ -179,40 +441,26 @@ export function MediaGallery({
             onScroll={isMultiPhotos ? syncScrollButtons : undefined}
           >
             {photos.map((src, index) => (
-              <button
+              <LazyGalleryImage
                 key={`${src}-${index}`}
-                type="button"
-                className={`media-gallery-btn ${isMultiPhotos ? "media-gallery-btn--multi" : "media-gallery-btn--single"}`}
-                aria-label={`Lihat penuh ${altPrefix} ${index + 1}`}
+                src={src}
+                alt={`${altPrefix} ${index + 1}`}
+                buttonClassName={`media-gallery-btn ${isMultiPhotos ? "media-gallery-btn--multi" : "media-gallery-btn--single"}`}
+                ariaLabel={`Lihat penuh ${altPrefix} ${index + 1}`}
                 onClick={(e) => {
                   e.stopPropagation();
-                  openLightbox(index);
+                  setActiveIndex(index);
                 }}
-              >
-                <img src={src} alt={`${altPrefix} ${index + 1}`} />
-              </button>
+              />
             ))}
           </div>
 
-          {isMultiPhotos && scrollState.left && (
-            <button
-              type="button"
-              className="media-carousel-nav media-carousel-nav--prev"
-              aria-label="Foto sebelumnya"
-              onClick={(e) => scrollCarousel(-1, e)}
-            >
-              <ChevronLeft size={18} strokeWidth={2} />
-            </button>
-          )}
-          {isMultiPhotos && scrollState.right && (
-            <button
-              type="button"
-              className="media-carousel-nav media-carousel-nav--next"
-              aria-label="Foto berikutnya"
-              onClick={(e) => scrollCarousel(1, e)}
-            >
-              <ChevronRight size={18} strokeWidth={2} />
-            </button>
+          {isMultiPhotos && (
+            <CarouselNavButtons
+              canPrev={scrollState.left}
+              canNext={scrollState.right}
+              onScroll={scrollCarousel}
+            />
           )}
         </div>
       )}
@@ -223,101 +471,19 @@ export function MediaGallery({
           src={src}
           controls
           playsInline
+          preload="metadata"
           className="comment-video-media"
           onClick={(e) => e.stopPropagation()}
         />
       ))}
 
-      {activePhoto !== null && activeIndex !== null && (
-        <Dialog
-          title={`Pratinjau ${altPrefix} ${activeIndex + 1}`}
-          onClose={closeLightbox}
-          hideHeader
-          className="media-lightbox-dialog"
-        >
-          <div
-            className="media-lightbox-stage"
-            onPointerDown={(e) => {
-              stagePointerDownOnBackdropRef.current =
-                e.target === e.currentTarget;
-            }}
-            onClick={(e) => {
-              e.stopPropagation();
-              const shouldClose =
-                e.target === e.currentTarget &&
-                stagePointerDownOnBackdropRef.current;
-              stagePointerDownOnBackdropRef.current = false;
-              if (shouldClose) {
-                closeLightbox();
-              }
-            }}
-          >
-            <div
-              className="media-lightbox-actions"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <button
-                type="button"
-                className="media-lightbox-btn"
-                aria-label="Tutup gambar"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  closeLightbox();
-                }}
-              >
-                <X size={20} strokeWidth={2} />
-              </button>
-              <button
-                type="button"
-                className="media-lightbox-btn"
-                aria-label="Unduh gambar"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  void downloadMediaFile(activePhoto, activeIndex);
-                }}
-              >
-                <Download size={19} strokeWidth={2} />
-              </button>
-            </div>
-
-            <img
-              src={activePhoto}
-              alt={`${altPrefix} ${activeIndex + 1}`}
-              className={`media-lightbox-img ${zoomed ? "is-zoomed" : ""}`}
-              style={
-                zoomed
-                  ? { transformOrigin: `${zoomOrigin.x}% ${zoomOrigin.y}%` }
-                  : undefined
-              }
-              onClick={(e) => {
-                e.stopPropagation();
-                if (!zoomed) {
-                  const rect = e.currentTarget.getBoundingClientRect();
-                  const x = Math.min(
-                    100,
-                    Math.max(
-                      0,
-                      ((e.clientX - rect.left) / Math.max(1, rect.width)) * 100,
-                    ),
-                  );
-                  const y = Math.min(
-                    100,
-                    Math.max(
-                      0,
-                      ((e.clientY - rect.top) / Math.max(1, rect.height)) * 100,
-                    ),
-                  );
-                  setZoomOrigin({ x, y });
-                  setZoomed(true);
-                } else {
-                  setZoomed(false);
-                  setZoomOrigin({ x: 50, y: 50 });
-                }
-              }}
-            />
-          </div>
-        </Dialog>
-      )}
+      <MediaLightbox
+        photos={photos}
+        activeIndex={activeIndex}
+        altPrefix={altPrefix}
+        onClose={() => setActiveIndex(null)}
+        onChangeIndex={setActiveIndex}
+      />
     </div>
   );
 }

@@ -1,5 +1,7 @@
 import { Suspense } from "react";
 import { PostDetail } from "@/features/posts/PostDetail";
+import { PageSkeleton } from "@/components/ui/Skeleton";
+
 async function Detail({
   params,
 }: {
@@ -8,13 +10,14 @@ async function Detail({
   const keys = await params;
   return <PostDetail {...keys} />;
 }
+
 export default function Page({
   params,
 }: {
   params: Promise<{ postKey: string; branchKey: string }>;
 }) {
   return (
-    <Suspense fallback={<p role="status">Memuat postingan�</p>}>
+    <Suspense fallback={<PageSkeleton variant="detail" />}>
       <Detail params={params} />
     </Suspense>
   );

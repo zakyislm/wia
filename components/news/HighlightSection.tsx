@@ -96,13 +96,13 @@ export function HighlightSection() {
   }, [posts]);
 
   return (
-    <section className="highlight-section" aria-label="Highlight trending">
-      <h2 className="highlight-section-title">Highlight</h2>
+    <section className="highlight-section" aria-label="Topik sorotan">
+      <h2 className="highlight-section-title">Sorotan</h2>
       <div className="highlight-list">
         {highlights.map((item, idx) => (
           <Link key={idx} href={item.href} className="highlight-item">
             <span className="highlight-caption">
-              Trending di {item.location}
+              Ramai di {item.location}
             </span>
             <span className="highlight-tag">{item.tag}</span>
           </Link>
