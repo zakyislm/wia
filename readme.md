@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="public/kavi.png" width="96" height="96" alt="Kavi Logo" />
+  <img src="https://app.kavi.jeki.me/kavi.png" width="96" height="96" alt="Kavi Logo" />
   <h1>Kavi</h1>
   <p><strong>Ruang Suara & Laporan Warga</strong></p>
   <p><em>Platform civic technology terbuka yang menjembatani warga dengan instansi pemerintah di 38 provinsi Indonesia untuk melaporkan permasalahan infrastruktur dan layanan publik secara transparan, berbasis bukti visual, serta termonitor hingga tuntas.</em></p>
