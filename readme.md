@@ -1,7 +1,26 @@
-# Kavi — Ruang Suara & Laporan Warga
+<div align="center">
+  <img src="public/kavi.png" width="96" height="96" alt="Kavi Logo" />
+  <h1>Kavi</h1>
+  <p><strong>Ruang Suara & Laporan Warga</strong></p>
+  <p><em>Platform civic technology terbuka yang menjembatani warga dengan instansi pemerintah di 38 provinsi Indonesia untuk melaporkan permasalahan infrastruktur dan layanan publik secara transparan, berbasis bukti visual, serta termonitor hingga tuntas.</em></p>
 
-> **Live URL:** [https://app.kavi.jeki.me](https://app.kavi.jeki.me)  
-> *Platform civic technology terbuka yang menjembatani warga dengan instansi pemerintah di 38 provinsi Indonesia untuk melaporkan permasalahan infrastruktur dan layanan publik secara transparan, berbasis bukti visual, serta termonitor hingga tuntas.*
+  <p>
+    <a href="https://app.kavi.jeki.me">
+      <img src="https://img.shields.io/badge/Production-app.kavi.jeki.me-1e72bd?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Live App" />
+    </a>
+  </p>
+
+  <p>
+    <img src="https://img.shields.io/badge/Next.js%2015-000000?style=for-the-badge&logo=nextdotjs&logoColor=white" alt="Next.js" />
+    <img src="https://img.shields.io/badge/React%2019-20232A?style=for-the-badge&logo=react&logoColor=61DAFB" alt="React 19" />
+    <img src="https://img.shields.io/badge/TypeScript%205-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
+    <img src="https://img.shields.io/badge/Turso-libSQL-4FF8D2?style=for-the-badge&logo=turso&logoColor=000000" alt="Turso" />
+    <img src="https://img.shields.io/badge/Drizzle_ORM-C5F74F?style=for-the-badge&logo=drizzle&logoColor=000000" alt="Drizzle" />
+    <img src="https://img.shields.io/badge/Cloudflare_R2-F38020?style=for-the-badge&logo=cloudflare&logoColor=white" alt="Cloudflare R2" />
+    <img src="https://img.shields.io/badge/Upstash_Redis-00E9A3?style=for-the-badge&logo=redis&logoColor=white" alt="Upstash Redis" />
+    <img src="https://img.shields.io/badge/Auth.js%20v5-000000?style=for-the-badge&logo=nextdotjs&logoColor=white" alt="Auth.js" />
+  </p>
+</div>
 
 ---
 
