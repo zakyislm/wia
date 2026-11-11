@@ -15,6 +15,38 @@ export function createMediaPreviewUrl(file: File): string {
   return isVid ? `${url}#video` : url;
 }
 
+export async function uploadMediaFileToR2(
+  file: File,
+  folder: "pfp" | "posts" | "evidence" = "posts",
+  userKey?: string | null,
+): Promise<string | null> {
+  try {
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("folder", folder);
+    const headers: Record<string, string> = {};
+    if (userKey) headers["x-user-id"] = userKey;
+    const res = await fetch("/api/upload", {
+      method: "POST",
+      headers,
+      body: fd,
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    const url = json?.data?.url;
+    if (typeof url === "string" && url.length > 0) {
+      const isVid =
+        file.type.startsWith("video/") || /\.(mp4|webm)$/i.test(file.name);
+      return isVid && !url.endsWith("#video") && !/\.(mp4|webm)(\?|$)/i.test(url)
+        ? `${url}#video`
+        : url;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 function LazyGalleryImage({
   src,
   alt,

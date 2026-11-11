@@ -22,7 +22,7 @@ async function runBufferedCounterTests() {
   // 1. Create temporary post directly in Turso
   await db.insert(posts).values({
     id: testPostId,
-    authorId: "usr_dev_citizen",
+    authorId: "alya",
     topicId: String(firstTopic.id),
     title: "Buffered Counter Test Post",
     content: "Testing Redis write-behind buffer",

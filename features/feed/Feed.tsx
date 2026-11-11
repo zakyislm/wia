@@ -49,7 +49,34 @@ export function Feed() {
       ? posts.filter(
           (post) => !post.anonymous && following.includes(post.authorKey),
         )
-      : posts;
+      : [...posts].sort((a, b) => {
+          const nowMs = Date.now();
+          const scorePost = (p: (typeof posts)[number]) => {
+            const ageMs = Math.max(0, nowMs - p.postedAt);
+            // Freshly published posts in current session always surface first
+            if (ageMs < 120000) return 1_000_000 - ageMs;
+            const ageHours = Math.max(0.25, ageMs / (1000 * 60 * 60));
+            const engagement =
+              (p.upvotesCount || 0) * 3 +
+              (p.replies?.length || 0) * 4.5 +
+              (p.reposted ? 5 : 0) -
+              (p.downvotesCount || 0) * 1.5;
+            let score = engagement / Math.pow(ageHours + 2, 1.15);
+            if (!p.anonymous && following.includes(p.authorKey)) score += 35;
+            if (
+              user?.region &&
+              p.province &&
+              user.region.toLowerCase().includes(p.province.toLowerCase())
+            ) {
+              score += 25;
+            }
+            if (p.kind === "report" && p.reportStatus === "in_progress") {
+              score += 18;
+            }
+            return score;
+          };
+          return scorePost(b) - scorePost(a);
+        });
   const readable = visible.filter((post) => {
     if (post.hidden || post.isDeleted) return false;
     if (

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, posts, comments, notifications } from "@/db";
 import { eq, and } from "drizzle-orm";
-import { getSessionUser } from "@/lib/auth-helper";
+import { getSessionUser, isDemoUser } from "@/lib/auth-helper";
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -18,7 +18,11 @@ export async function POST(req: NextRequest, { params }: Params) {
     // RBAC: Only GOVERNMENT or INTERNAL can solve a report
     if (currentUser.role !== "GOVERNMENT" && currentUser.role !== "INTERNAL") {
       return NextResponse.json(
-        { success: false, error: "Forbidden: Only verified Government agencies or Internal team can solve issues." },
+        {
+          success: false,
+          error:
+            "Forbidden: Only verified Government agencies or Internal team can solve issues.",
+        },
         { status: 403 }
       );
     }
@@ -37,6 +41,20 @@ export async function POST(req: NextRequest, { params }: Params) {
       );
     }
 
+    if (isDemoUser(currentUser)) {
+      return NextResponse.json({
+        success: true,
+        demo: true,
+        data: {
+          postId,
+          status: "CLOSED",
+          closeType: "SOLVED",
+          reportStatus: "completed",
+          resolutionCommentId: `demo_res_${Date.now()}`,
+        },
+      });
+    }
+
     const targetPost = await db.query.posts.findFirst({
       where: and(eq(posts.id, postId), eq(posts.isDeleted, false)),
     });
@@ -52,7 +70,9 @@ export async function POST(req: NextRequest, { params }: Params) {
     if (currentUser.role === "GOVERNMENT") {
       if (
         currentUser.jurisdictionProvince &&
-        targetPost.province.toLowerCase() !== currentUser.jurisdictionProvince.toLowerCase()
+        targetPost.province &&
+        targetPost.province.toLowerCase() !==
+          currentUser.jurisdictionProvince.toLowerCase()
       ) {
         return NextResponse.json(
           {
@@ -67,20 +87,47 @@ export async function POST(req: NextRequest, { params }: Params) {
     const now = new Date();
     const resolutionCommentId = `cmt_res_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
-    // 1. Insert official resolution comment
-    await db.insert(comments).values({
-      id: resolutionCommentId,
-      postId,
-      authorId: currentUser.id,
-      parentId: null,
-      content: content.trim(),
-      images: Array.isArray(images) ? images : [],
-      upvotesCount: 0,
-      downvotesCount: 0,
-      isDeleted: false,
-      createdAt: now,
-      updatedAt: now,
-    });
+    // 1. Insert official resolution in Option A unified `posts` (`kind: "reply"`) and `comments`
+    await db
+      .insert(posts)
+      .values({
+        id: resolutionCommentId,
+        authorId: currentUser.id,
+        kind: "reply",
+        parentPostId: postId,
+        rootPostId: postId,
+        topicId: targetPost.topicId,
+        content: content.trim(),
+        images: Array.isArray(images) ? images : [],
+        locationName: targetPost.locationName,
+        province: targetPost.province,
+        status: "OPEN",
+        closeType: "NONE",
+        isActionTaken: true,
+        actionRole: currentUser.role as "GOVERNMENT" | "INTERNAL",
+        actionTakenAt: now,
+        postedAt: now,
+        updatedAt: now,
+      })
+      .onConflictDoNothing();
+
+    await db
+      .insert(comments)
+      .values({
+        id: resolutionCommentId,
+        postId,
+        authorId: currentUser.id,
+        parentId: null,
+        content: content.trim(),
+        images: Array.isArray(images) ? images : [],
+        upvotesCount: 0,
+        downvotesCount: 0,
+        isActionTaken: true,
+        isDeleted: false,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .onConflictDoNothing();
 
     // 2. Mark post as SOLVED and closed
     await db
@@ -88,7 +135,9 @@ export async function POST(req: NextRequest, { params }: Params) {
       .set({
         status: "CLOSED",
         closeType: "SOLVED",
+        reportStatus: "completed",
         closedById: currentUser.id,
+        closedAt: now,
         resolutionCommentId,
         updatedAt: now,
       })
@@ -103,7 +152,9 @@ export async function POST(req: NextRequest, { params }: Params) {
         type: "RESOLVED",
         postId,
         commentId: resolutionCommentId,
+        title: "Laporan selesai ditindaklanjuti",
         message: `Laporan Anda telah diselesaikan secara resmi oleh ${currentUser.agencyName || currentUser.name}.`,
+        href: `/posts/${postId}#evidence`,
         isRead: false,
         createdAt: now,
       });
@@ -115,6 +166,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         postId,
         status: "CLOSED",
         closeType: "SOLVED",
+        reportStatus: "completed",
         resolutionCommentId,
         closedBy: {
           id: currentUser.id,

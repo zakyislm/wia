@@ -219,7 +219,7 @@ export function UserHoverCard({ person, children }: UserHoverCardProps) {
           </div>
 
           <p className="user-hover-bio">
-            {person.bio || "Warga aktif di KAVI."}
+            {person.bio || "Warga aktif di Kavi."}
           </p>
 
           <div className="user-hover-stats">

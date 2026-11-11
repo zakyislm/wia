@@ -23,7 +23,7 @@ import {
 import { useDemo } from "@/features/auth/DemoProvider";
 import { ProductShell } from "@/components/layout/ProductShell";
 import { Avatar } from "@/components/ui/Avatar";
-import { MediaGallery } from "@/components/ui/MediaGallery";
+import { MediaGallery, uploadMediaFileToR2 } from "@/components/ui/MediaGallery";
 import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { Dialog } from "@/components/ui/Dialog";
 import { PostCard, renderWithMentions } from "@/features/posts/PostCard";
@@ -99,11 +99,18 @@ export function EditProfile({
       setError(message);
       return;
     }
-    const url = URL.createObjectURL(files[0]);
+    const file = files[0];
+    const url = URL.createObjectURL(file);
     created.current.push(url);
     setImage(url);
     setError("");
     e.target.value = "";
+
+    void uploadMediaFileToR2(file, "pfp", user?.localKey).then((r2Url) => {
+      if (r2Url && !r2Url.startsWith("data:")) {
+        setImage(r2Url);
+      }
+    });
   }
 
   return (
@@ -784,7 +791,7 @@ export function Profile({ profileKey }: { profileKey?: string }) {
                                 await navigator.clipboard.writeText(
                                   `${location.origin}/profile/${person.username || person.localKey}`,
                                 );
-                                showToast("Tautan profil disalin.", "success");
+                                showToast("Link disalin", "success");
                               } catch {
                                 showToast(
                                   "Tidak dapat menyalin tautan profil.",

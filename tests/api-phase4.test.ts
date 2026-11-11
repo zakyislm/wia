@@ -6,13 +6,13 @@ import assert from "assert";
 async function runPhase4Tests() {
   console.log("=== [TEST SUITE] PHASE 4: SOCIAL GRAPH, MODERATION & NOTIFS ===");
 
-  const citizenUser = await db.query.users.findFirst({ where: eq(users.username, "miraaaaaaaa") });
-  const internalUser = await db.query.users.findFirst({ where: eq(users.username, "zaky") });
+  const citizenUser = await db.query.users.findFirst({ where: eq(users.id, "alya") });
+  const internalUser = await db.query.users.findFirst({ where: eq(users.id, "zaky_internal") });
   assert(citizenUser && internalUser, "Test users must exist");
 
   // Test 1: Profile Query
   console.log("-> Test 1: Fetching User Profile...");
-  assert.strictEqual(citizenUser.name, "Mira Sualifah");
+  assert.strictEqual(citizenUser.name, "Alya Putri");
   console.log(`   PASS: Profile found -> @${citizenUser.username} (${citizenUser.role})`);
 
   // Test 2: Follow / Unfollow

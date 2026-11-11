@@ -48,7 +48,7 @@ async function runPhase1Tests() {
 
   await db.insert(posts).values({
     id: tempId,
-    authorId: "usr_dev_citizen",
+    authorId: "alya",
     topicId: topicsList[0].id,
     title: "Unit Test Automated Post",
     content: "Testing automatic post lifecycle and database constraints.",

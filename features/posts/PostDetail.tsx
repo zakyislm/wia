@@ -82,8 +82,8 @@ export function PostDetail({
           <div className="empty-state">
             <h2>Postingan tidak tersedia</h2>
             <p>
-              Data demo dapat hilang setelah refresh. Kembali ke beranda untuk
-              memulai lagi.
+              Postingan ini telah dihapus atau tautan tidak ditemukan. Kembali ke
+              beranda untuk melihat diskusi lainnya.
             </p>
           </div>
         )}

@@ -20,6 +20,7 @@ import { Dialog } from "@/components/ui/Dialog";
 import {
   MediaGallery,
   isVideoMedia,
+  uploadMediaFileToR2,
 } from "@/components/ui/MediaGallery";
 import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { EmojiSelectorModal } from "@/components/selectors/EmojiSelectorModal";
@@ -552,6 +553,23 @@ export function Messages({ selectedKey }: { selectedKey?: string }) {
                           });
                           setImages((current) => [...current, ...added]);
                           setError("");
+
+                          files.forEach((file, idx) => {
+                            const previewUrl = added[idx];
+                            void uploadMediaFileToR2(
+                              file,
+                              "posts",
+                              user?.localKey,
+                            ).then((r2Url) => {
+                              if (r2Url && !r2Url.startsWith("data:")) {
+                                setImages((current) =>
+                                  current.map((item) =>
+                                    item === previewUrl ? r2Url : item,
+                                  ),
+                                );
+                              }
+                            });
+                          });
                         }
                         event.target.value = "";
                       }}

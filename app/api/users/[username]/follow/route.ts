@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, users, follows, notifications } from "@/db";
-import { eq, and, sql } from "drizzle-orm";
-import { getSessionUser } from "@/lib/auth-helper";
+import { eq, and, or, sql } from "drizzle-orm";
+import { getSessionUser, isDemoUser } from "@/lib/auth-helper";
 
 interface Params {
   params: Promise<{ username: string }>;
@@ -12,8 +12,16 @@ export async function POST(req: NextRequest, { params }: Params) {
     const rawUsername = (await params).username.replace(/^@/, "").trim();
     const currentUser = await getSessionUser(req);
 
+    if (isDemoUser(currentUser)) {
+      return NextResponse.json({
+        success: true,
+        demo: true,
+        data: { isFollowing: true },
+      });
+    }
+
     const targetUser = await db.query.users.findFirst({
-      where: eq(users.username, rawUsername),
+      where: or(eq(users.username, rawUsername), eq(users.id, rawUsername)),
     });
 
     if (!targetUser) {
@@ -61,7 +69,10 @@ export async function POST(req: NextRequest, { params }: Params) {
 
       return NextResponse.json({
         success: true,
-        data: { isFollowing: false, message: `Unfollowed @${targetUser.username}` },
+        data: {
+          isFollowing: false,
+          message: `Unfollowed @${targetUser.username}`,
+        },
       });
     }
 
@@ -86,7 +97,9 @@ export async function POST(req: NextRequest, { params }: Params) {
         recipientId: targetUser.id,
         actorId: currentUser.id,
         type: "FOLLOW",
+        title: `${currentUser.name} mulai mengikuti Anda`,
         message: `@${currentUser.username} mulai mengikuti Anda.`,
+        href: `/profile/${currentUser.username}`,
         isRead: false,
         createdAt: new Date(),
       }),
@@ -94,7 +107,10 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     return NextResponse.json({
       success: true,
-      data: { isFollowing: true, message: `Now following @${targetUser.username}` },
+      data: {
+        isFollowing: true,
+        message: `Now following @${targetUser.username}`,
+      },
     });
   } catch (error) {
     console.error("POST /api/users/[username]/follow error:", error);

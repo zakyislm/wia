@@ -526,7 +526,7 @@ export function Settings() {
                 Pemulihan kata sandi
               </strong>
               <span className="settings-row-subtitle">
-                Tinjau alur pemulihan akun (sesi demo lokal)
+                Atur ulang atau pulihkan akses kata sandi akun
               </span>
             </div>
             <ChevronRight size={18} className="settings-chevron" />
@@ -1036,7 +1036,7 @@ export function Settings() {
                 Pedoman privasi & anonimitas
               </strong>
               <span className="settings-row-subtitle">
-                Pelajari cara identitas anonim, lokasi, dan sesi demo dikelola
+                Pelajari cara identitas anonim, lokasi, dan akun dikelola
               </span>
             </div>
             <Link href="/help#anonymity" className="settings-action-btn">
@@ -1082,8 +1082,7 @@ export function Settings() {
                 Hapus semua postingan
               </strong>
               <span className="settings-row-subtitle">
-                Hapus permanen seluruh postingan dan balasan akun ini di sesi
-                demo
+                Hapus permanen seluruh postingan dan balasan akun ini
               </span>
             </div>
             <button
@@ -1099,7 +1098,7 @@ export function Settings() {
             <div className="settings-row-copy">
               <strong className="settings-row-title">Hapus akun</strong>
               <span className="settings-row-subtitle">
-                Hapus akses sesi demo dan keluar kembali ke halaman masuk
+                Keluar dari akun dan kembali ke halaman masuk
               </span>
             </div>
             <button
@@ -1122,7 +1121,7 @@ export function Settings() {
             }}
           >
             <LogOut size={16} strokeWidth={1.8} />
-            <span>Keluar dari sesi demo</span>
+            <span>Keluar dari akun</span>
           </button>
         </div>
       </section>
@@ -1268,7 +1267,7 @@ export function Settings() {
       {dangerConfirm === "delete_posts" && (
         <ConfirmDangerModal
           title="Hapus semua postingan?"
-          message="Seluruh postingan dan balasan yang dibuat oleh akun ini pada sesi demo akan dihapus permanen."
+          message="Seluruh postingan dan balasan yang dibuat oleh akun ini akan dihapus permanen."
           confirmLabel="Hapus postingan"
           onConfirm={() => {
             if (user) {
@@ -1285,7 +1284,7 @@ export function Settings() {
             }
             setDangerConfirm(null);
             showToast(
-              "Seluruh postingan & balasan sesi ini telah dihapus.",
+              "Seluruh postingan & balasan akun ini telah dihapus.",
               "success",
             );
           }}
@@ -1295,8 +1294,8 @@ export function Settings() {
 
       {dangerConfirm === "delete_account" && (
         <ConfirmDangerModal
-          title="Hapus akun sesi demo?"
-          message="Aksi ini mereset seluruh data sesi demo dan mengarahkanmu kembali ke halaman masuk."
+          title="Hapus akun?"
+          message="Aksi ini mengeluarkanmu dari akun dan mengarahkanmu kembali ke halaman masuk."
           confirmLabel="Hapus akun"
           onConfirm={() => {
             setDangerConfirm(null);

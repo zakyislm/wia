@@ -4,107 +4,70 @@ import { useDemo } from "@/features/auth/DemoProvider";
 import { useMemo } from "react";
 
 interface HighlightItem {
+  id: string;
   location: string;
-  tag: string;
+  topicName: string;
   href: string;
+  score: number;
 }
 
-const defaultHighlights: HighlightItem[] = [
-  {
-    location: "Kota Bandung",
-    tag: "#TrotoarRusak",
-    href: "/explore?q=%23TrotoarRusak",
-  },
-  {
-    location: "Jawa Barat",
-    tag: "#Kebersihan",
-    href: "/explore?q=%23Kebersihan",
-  },
-  {
-    location: "DKI Jakarta",
-    tag: "#TransportasiUmum",
-    href: "/explore?q=%23TransportasiUmum",
-  },
-  {
-    location: "Indonesia",
-    tag: "#FasilitasPublik",
-    href: "/explore?q=%23FasilitasPublik",
-  },
-];
-
-const fallbackLocations = [
-  "Kota Bandung",
-  "Jawa Barat",
-  "DKI Jakarta",
-  "Indonesia",
-];
-
 export function HighlightSection() {
-  const { posts } = useDemo();
+  const { topics, posts } = useDemo();
 
   const highlights = useMemo<HighlightItem[]>(() => {
-    const list: HighlightItem[] = [];
-    const seenTags = new Set<string>();
+    const activePosts = posts.filter((p) => !p.isDeleted && !p.hidden);
 
-    // Strictly extract post tags (NOT topics)
-    posts.forEach((post) => {
-      if (post.isDeleted || post.hidden) return;
+    const topicItems: HighlightItem[] = topics.map((topic) => {
+      const matchingPosts = activePosts.filter(
+        (p) =>
+          p.topicId === topic.id ||
+          p.category?.toLowerCase() === topic.name.toLowerCase()
+      );
 
-      post.tags?.forEach((tag) => {
-        const cleanTag = tag.replace(/^#/, "").trim();
-        if (!cleanTag) return;
-        const lower = cleanTag.toLowerCase();
-        if (!seenTags.has(lower)) {
-          seenTags.add(lower);
+      let score = topic.isTrending ? 20 : 0;
+      const provinceFreq = new Map<string, number>();
 
-          // Assign realistic varied locations across Indonesia
-          let loc = post.province || "Indonesia";
-          if (cleanTag.toLowerCase() === "bandung") {
-            loc = "Jawa Barat";
-          } else if (cleanTag.toLowerCase() === "trotoarrusak" || cleanTag.toLowerCase() === "aksesaman") {
-            loc = "Kota Bandung";
-          } else if (cleanTag.toLowerCase() === "transportasiumum" || cleanTag.toLowerCase() === "haltebus") {
-            loc = "DKI Jakarta";
-          } else if (cleanTag.toLowerCase() === "fasilitaspublik") {
-            loc = "Indonesia";
-          } else if (list.some((item) => item.location === loc)) {
-            // Avoid repeating identical location for every item
-            const nextLoc = fallbackLocations.find(
-              (candidate) => !list.some((item) => item.location === candidate),
-            );
-            if (nextLoc) loc = nextLoc;
-          }
-
-          list.push({
-            location: loc,
-            tag: `#${cleanTag}`,
-            href: `/explore?q=${encodeURIComponent("#" + cleanTag)}`,
-          });
+      for (const p of matchingPosts) {
+        const eng =
+          (p.upvotesCount || 0) +
+          (p.downvotesCount || 0) +
+          (p.replies?.length || 0) * 3;
+        score += 10 + eng;
+        const prov = (p.province || "Indonesia").trim();
+        if (prov) {
+          provinceFreq.set(prov, (provinceFreq.get(prov) || 0) + 1 + eng * 0.05);
         }
-      });
+      }
+
+      let topProvince = "Indonesia";
+      let bestWeight = -1;
+      for (const [prov, weight] of provinceFreq.entries()) {
+        if (weight > bestWeight) {
+          bestWeight = weight;
+          topProvince = prov;
+        }
+      }
+
+      return {
+        id: topic.id,
+        location: topProvince,
+        topicName: topic.name,
+        href: `/explore?q=${encodeURIComponent(topic.name)}`,
+        score,
+      };
     });
 
-    const merged = [
-      ...list,
-      ...defaultHighlights.filter(
-        (d) => !seenTags.has(d.tag.replace(/^#/, "").toLowerCase()),
-      ),
-    ];
-
-    // Return 4 items (3-5 items per spec)
-    return merged.slice(0, 4);
-  }, [posts]);
+    return topicItems.sort((a, b) => b.score - a.score).slice(0, 4);
+  }, [topics, posts]);
 
   return (
     <section className="highlight-section" aria-label="Topik sorotan">
       <h2 className="highlight-section-title">Sorotan</h2>
       <div className="highlight-list">
-        {highlights.map((item, idx) => (
-          <Link key={idx} href={item.href} className="highlight-item">
-            <span className="highlight-caption">
-              Ramai di {item.location}
-            </span>
-            <span className="highlight-tag">{item.tag}</span>
+        {highlights.map((item) => (
+          <Link key={item.id} href={item.href} className="highlight-item">
+            <span className="highlight-caption">Ramai di {item.location}</span>
+            <span className="highlight-tag">{item.topicName}</span>
           </Link>
         ))}
       </div>

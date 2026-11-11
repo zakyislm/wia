@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db, topics, posts } from "@/db";
 import { eq, desc } from "drizzle-orm";
 
-const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://kavi.id").replace(/\/$/, "");
+const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://app.kavi.jeki.me").replace(/\/$/, "");
 
 export async function GET() {
   try {

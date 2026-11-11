@@ -13,6 +13,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import {
   MediaAttachmentPreview,
   createMediaPreviewUrl,
+  uploadMediaFileToR2,
 } from "@/components/ui/MediaGallery";
 import { useDemo } from "@/features/auth/DemoProvider";
 import {
@@ -403,6 +404,17 @@ export function Composer({ onClose, initialMode = "report" }: ComposerProps) {
     urls.current.push(...added);
     setImages((current) => [...current, ...added]);
     setError("");
+
+    files.forEach((file, idx) => {
+      const previewUrl = added[idx];
+      void uploadMediaFileToR2(file, "posts", user?.localKey).then((r2Url) => {
+        if (r2Url && !r2Url.startsWith("data:")) {
+          setImages((current) =>
+            current.map((item) => (item === previewUrl ? r2Url : item)),
+          );
+        }
+      });
+    });
   }
 
   function handlePasteMedia(event: React.ClipboardEvent<HTMLTextAreaElement>) {

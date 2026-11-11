@@ -72,6 +72,7 @@ export async function GET(req: NextRequest) {
         stats: {
           postCount: user.postCount,
           followerCount: user.followerCount,
+          followersCount: user.followerCount,
           followingCount: user.followingCount,
           solvedReportsCount,
           totalUpvotesReceived,
@@ -159,8 +160,15 @@ export async function PATCH(req: NextRequest) {
     if (body.bio !== undefined) updateData.bio = String(body.bio).trim();
     if (body.image !== undefined) updateData.image = String(body.image).trim();
 
-    // 4. Government / Agency fields (if user has government role or upgrading)
+    // 4. Government / Agency / Region fields
     if (body.agencyName !== undefined) updateData.agencyName = String(body.agencyName).trim();
+    if (body.region !== undefined) {
+      updateData.region = String(body.region).trim();
+      if (body.jurisdictionProvince === undefined) {
+        updateData.jurisdictionProvince =
+          String(body.region).split(",").pop()?.trim() || String(body.region).trim();
+      }
+    }
     if (body.jurisdictionProvince !== undefined) {
       updateData.jurisdictionProvince = String(body.jurisdictionProvince).trim();
     }

@@ -27,18 +27,6 @@ export function LocationSelectorModal({
   const [locating, setLocating] = useState(false);
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem("kavi_location_history");
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setHistory(parsed.slice(0, 4));
-        }
-      }
-    } catch {}
-  }, []);
-
-  useEffect(() => {
     if (!isOpen) return;
     const clean = search.trim();
     if (clean.length < 3) {
@@ -81,9 +69,6 @@ export function LocationSelectorModal({
     if (!clean) return;
     const updated = [clean, ...history.filter((h) => h !== clean)].slice(0, 4);
     setHistory(updated);
-    try {
-      localStorage.setItem("kavi_location_history", JSON.stringify(updated));
-    } catch {}
     onSelect(clean);
     onClose();
   }

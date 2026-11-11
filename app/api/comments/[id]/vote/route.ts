@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, comments, votes, notifications } from "@/db";
+import { db, comments, posts, votes, notifications } from "@/db";
 import { eq, and, sql } from "drizzle-orm";
-import { getSessionUser } from "@/lib/auth-helper";
+import { getSessionUser, isDemoUser } from "@/lib/auth-helper";
+import { shouldAutoCloseAction } from "@/lib/validation";
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -21,16 +22,39 @@ export async function POST(req: NextRequest, { params }: Params) {
       );
     }
 
-    const targetComment = await db.query.comments.findFirst({
-      where: and(eq(comments.id, commentId), eq(comments.isDeleted, false)),
-    });
+    if (isDemoUser(currentUser)) {
+      return NextResponse.json({
+        success: true,
+        demo: true,
+        data: {
+          action: "ADDED",
+          currentVote: voteType,
+          upvotesCount: 1,
+          downvotesCount: 0,
+        },
+      });
+    }
 
-    if (!targetComment) {
+    // Lookup in comments table or Option A unified posts table
+    const [targetComment, targetReplyPost] = await Promise.all([
+      db.query.comments.findFirst({
+        where: and(eq(comments.id, commentId), eq(comments.isDeleted, false)),
+      }),
+      db.query.posts.findFirst({
+        where: and(eq(posts.id, commentId), eq(posts.isDeleted, false)),
+      }),
+    ]);
+
+    if (!targetComment && !targetReplyPost) {
       return NextResponse.json(
         { success: false, error: "Comment not found" },
         { status: 404 }
       );
     }
+
+    const authorId = targetComment?.authorId || targetReplyPost!.authorId;
+    const rootPostId =
+      targetComment?.postId || targetReplyPost?.rootPostId || targetReplyPost?.parentPostId || null;
 
     // Check existing vote
     const existingVote = await db.query.votes.findFirst({
@@ -58,15 +82,27 @@ export async function POST(req: NextRequest, { params }: Params) {
           );
 
         if (voteType === "UP") {
-          await db
-            .update(comments)
-            .set({ upvotesCount: sql`MAX(${comments.upvotesCount} - 1, 0)` })
-            .where(eq(comments.id, commentId));
+          await Promise.all([
+            db
+              .update(comments)
+              .set({ upvotesCount: sql`MAX(${comments.upvotesCount} - 1, 0)` })
+              .where(eq(comments.id, commentId)),
+            db
+              .update(posts)
+              .set({ upvotesCount: sql`MAX(${posts.upvotesCount} - 1, 0)` })
+              .where(eq(posts.id, commentId)),
+          ]);
         } else {
-          await db
-            .update(comments)
-            .set({ downvotesCount: sql`MAX(${comments.downvotesCount} - 1, 0)` })
-            .where(eq(comments.id, commentId));
+          await Promise.all([
+            db
+              .update(comments)
+              .set({ downvotesCount: sql`MAX(${comments.downvotesCount} - 1, 0)` })
+              .where(eq(comments.id, commentId)),
+            db
+              .update(posts)
+              .set({ downvotesCount: sql`MAX(${posts.downvotesCount} - 1, 0)` })
+              .where(eq(posts.id, commentId)),
+          ]);
         }
 
         action = "REMOVED";
@@ -85,21 +121,39 @@ export async function POST(req: NextRequest, { params }: Params) {
           );
 
         if (voteType === "UP") {
-          await db
-            .update(comments)
-            .set({
-              upvotesCount: sql`${comments.upvotesCount} + 1`,
-              downvotesCount: sql`MAX(${comments.downvotesCount} - 1, 0)`,
-            })
-            .where(eq(comments.id, commentId));
+          await Promise.all([
+            db
+              .update(comments)
+              .set({
+                upvotesCount: sql`${comments.upvotesCount} + 1`,
+                downvotesCount: sql`MAX(${comments.downvotesCount} - 1, 0)`,
+              })
+              .where(eq(comments.id, commentId)),
+            db
+              .update(posts)
+              .set({
+                upvotesCount: sql`${posts.upvotesCount} + 1`,
+                downvotesCount: sql`MAX(${posts.downvotesCount} - 1, 0)`,
+              })
+              .where(eq(posts.id, commentId)),
+          ]);
         } else {
-          await db
-            .update(comments)
-            .set({
-              downvotesCount: sql`${comments.downvotesCount} + 1`,
-              upvotesCount: sql`MAX(${comments.upvotesCount} - 1, 0)`,
-            })
-            .where(eq(comments.id, commentId));
+          await Promise.all([
+            db
+              .update(comments)
+              .set({
+                downvotesCount: sql`${comments.downvotesCount} + 1`,
+                upvotesCount: sql`MAX(${comments.upvotesCount} - 1, 0)`,
+              })
+              .where(eq(comments.id, commentId)),
+            db
+              .update(posts)
+              .set({
+                downvotesCount: sql`${posts.downvotesCount} + 1`,
+                upvotesCount: sql`MAX(${posts.upvotesCount} - 1, 0)`,
+              })
+              .where(eq(posts.id, commentId)),
+          ]);
         }
 
         action = "SWITCHED";
@@ -115,46 +169,94 @@ export async function POST(req: NextRequest, { params }: Params) {
       });
 
       if (voteType === "UP") {
-        await db
-          .update(comments)
-          .set({ upvotesCount: sql`${comments.upvotesCount} + 1` })
-          .where(eq(comments.id, commentId));
+        await Promise.all([
+          db
+            .update(comments)
+            .set({ upvotesCount: sql`${comments.upvotesCount} + 1` })
+            .where(eq(comments.id, commentId)),
+          db
+            .update(posts)
+            .set({ upvotesCount: sql`${posts.upvotesCount} + 1` })
+            .where(eq(posts.id, commentId)),
+        ]);
 
-        if (targetComment.authorId !== currentUser.id) {
+        if (authorId !== currentUser.id && rootPostId) {
           await db.insert(notifications).values({
             id: `notif_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-            recipientId: targetComment.authorId,
+            recipientId: authorId,
             actorId: currentUser.id,
             type: "UPVOTE",
-            postId: targetComment.postId,
+            postId: rootPostId,
             commentId,
+            title: `${currentUser.name} menyetujui balasan Anda`,
+            href: `/posts/${rootPostId}`,
             isRead: false,
             createdAt: new Date(),
           });
         }
       } else {
-        await db
-          .update(comments)
-          .set({ downvotesCount: sql`${comments.downvotesCount} + 1` })
-          .where(eq(comments.id, commentId));
+        await Promise.all([
+          db
+            .update(comments)
+            .set({ downvotesCount: sql`${comments.downvotesCount} + 1` })
+            .where(eq(comments.id, commentId)),
+          db
+            .update(posts)
+            .set({ downvotesCount: sql`${posts.downvotesCount} + 1` })
+            .where(eq(posts.id, commentId)),
+        ]);
       }
 
       action = "ADDED";
       currentVote = voteType;
     }
 
-    const updatedComment = await db.query.comments.findFirst({
-      where: eq(comments.id, commentId),
-      columns: { upvotesCount: true, downvotesCount: true },
-    });
+    const [updatedComment, updatedReplyPost] = await Promise.all([
+      db.query.comments.findFirst({
+        where: eq(comments.id, commentId),
+        columns: { upvotesCount: true, downvotesCount: true, isActionTaken: true },
+      }),
+      db.query.posts.findFirst({
+        where: eq(posts.id, commentId),
+        columns: { upvotesCount: true, downvotesCount: true, isActionTaken: true },
+      }),
+    ]);
+
+    const upvotesCount =
+      updatedReplyPost?.upvotesCount ?? updatedComment?.upvotesCount ?? 0;
+    const downvotesCount =
+      updatedReplyPost?.downvotesCount ?? updatedComment?.downvotesCount ?? 0;
+    const isAction = Boolean(
+      updatedReplyPost?.isActionTaken || updatedComment?.isActionTaken
+    );
+
+    // Auto-close parent report when action-taken response reaches >= 40 votes and >= 83% approval
+    let autoClosed = false;
+    if (isAction && rootPostId && shouldAutoCloseAction(upvotesCount, downvotesCount)) {
+      const now = new Date();
+      await db
+        .update(posts)
+        .set({
+          status: "CLOSED",
+          closeType: "SOLVED",
+          reportStatus: "completed",
+          closedById: authorId,
+          closedAt: now,
+          resolutionCommentId: commentId,
+          updatedAt: now,
+        })
+        .where(eq(posts.id, rootPostId));
+      autoClosed = true;
+    }
 
     return NextResponse.json({
       success: true,
       data: {
         action,
         currentVote,
-        upvotesCount: updatedComment?.upvotesCount ?? 0,
-        downvotesCount: updatedComment?.downvotesCount ?? 0,
+        upvotesCount,
+        downvotesCount,
+        autoClosed,
       },
     });
   } catch (error) {

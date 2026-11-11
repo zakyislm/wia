@@ -14,7 +14,7 @@ async function runPhase3Tests() {
   // Create temporary post in Kaltara
   await db.insert(posts).values({
     id: testPostId,
-    authorId: "usr_dev_citizen",
+    authorId: "alya",
     topicId: allTopics[0].id,
     title: "Jembatan Rusak Berat di Bulungan Menunggu Tindak Lanjut",
     content: "Akses warga terputus karena jembatan kayu ambles. Butuh jembatan darurat.",
@@ -34,7 +34,7 @@ async function runPhase3Tests() {
   await db.insert(comments).values({
     id: resCommentId,
     postId: testPostId,
-    authorId: "usr_gov_kaltara",
+    authorId: "pupr",
     content: "Dinas PUPR Kaltara telah memasang jembatan bailey darurat per siang ini. Akses sudah normal.",
     createdAt: now,
     updatedAt: now,
@@ -45,7 +45,7 @@ async function runPhase3Tests() {
     .set({
       status: "CLOSED",
       closeType: "SOLVED",
-      closedById: "usr_gov_kaltara",
+      closedById: "pupr",
       resolutionCommentId: resCommentId,
       updatedAt: now,
     })
@@ -60,7 +60,7 @@ async function runPhase3Tests() {
   assert.strictEqual(solvedPost.status, "CLOSED", "Post status must be CLOSED");
   assert.strictEqual(solvedPost.closeType, "SOLVED", "closeType must be SOLVED");
   assert.strictEqual(solvedPost.resolutionCommentId, resCommentId, "Resolution comment ID must match");
-  assert.strictEqual(solvedPost.closedBy?.agencyName, "Pemerintah Daerah Kalimantan Utara");
+  assert.strictEqual(solvedPost.closedBy?.agencyName, "Dinas PUPR Bandung");
   console.log("   PASS: Government resolution linked to official response comment");
 
   // Test 2: Pin / Unpin Toggle

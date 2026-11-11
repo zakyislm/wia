@@ -3,6 +3,7 @@ import { useState, useMemo } from "react";
 import { Search, X, Check } from "lucide-react";
 import { Dialog } from "@/components/ui/Dialog";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
+import { useDemo } from "@/features/auth/DemoProvider";
 import {
   defaultTopics,
   findTopicNameBySlug,
@@ -29,19 +30,22 @@ export function TopicSelectorModal({
   onSelect: (topic: Topic) => void;
   selectedSlug?: string;
 }) {
+  const { topics: dbTopics = [] } = useDemo();
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search, 200);
   const activeSearch = search === "" ? "" : debouncedSearch;
 
+  const sourceTopics = dbTopics.length > 0 ? dbTopics : defaultTopics;
+
   const filteredTopics = useMemo(() => {
     const q = activeSearch.trim().toLowerCase();
-    if (!q) return defaultTopics;
-    return defaultTopics.filter(
+    if (!q) return sourceTopics;
+    return sourceTopics.filter(
       (t) =>
         t.name.toLowerCase().includes(q) ||
         t.slug.toLowerCase().includes(q)
     );
-  }, [activeSearch]);
+  }, [activeSearch, sourceTopics]);
 
   if (!isOpen) return null;
 

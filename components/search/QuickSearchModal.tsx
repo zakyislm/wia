@@ -100,7 +100,7 @@ export function SearchTriggerButton({
   onClick,
   className = "",
   query = "",
-  placeholder = "Cari di KAVI",
+  placeholder = "Cari di Kavi",
 }: {
   onClick?: () => void;
   className?: string;
@@ -151,20 +151,10 @@ export function QuickSearchModal({
     }
   }, [isOpen, initialQuery]);
 
-  useEffect(() => {
-    const saved = localStorage.getItem("kavi_recent_searches");
-    if (saved) {
-      try {
-        setHistory(JSON.parse(saved));
-      } catch {}
-    }
-  }, []);
-
   function removeHistoryItem(item: string, e: React.MouseEvent) {
     e.stopPropagation();
     const updated = history.filter((h) => h !== item);
     setHistory(updated);
-    localStorage.setItem("kavi_recent_searches", JSON.stringify(updated));
   }
 
   function addHistoryItem(item: string) {
@@ -172,7 +162,6 @@ export function QuickSearchModal({
     if (!trimmed) return;
     const updated = [trimmed, ...history.filter((h) => h !== trimmed)].slice(0, 6);
     setHistory(updated);
-    localStorage.setItem("kavi_recent_searches", JSON.stringify(updated));
   }
 
   function handleSearchSubmit(searchVal: string) {

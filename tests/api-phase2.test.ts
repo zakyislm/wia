@@ -12,7 +12,7 @@ async function runPhase2Tests() {
   });
   assert(activePost, "Must have at least one active post for testing");
   const postId = activePost.id;
-  const testUserId = "usr_dev_citizen";
+  const testUserId = "alya";
   const now = new Date();
 
   // Test 1: Add Parent Comment

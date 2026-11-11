@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db, posts, notifications } from "@/db";
 import { eq, and } from "drizzle-orm";
-import { getSessionUser } from "@/lib/auth-helper";
+import { getSessionUser, isDemoUser } from "@/lib/auth-helper";
 
 interface Params {
   params: Promise<{ id: string }>;
@@ -14,9 +14,28 @@ export async function POST(req: NextRequest, { params }: Params) {
 
     if (currentUser.role !== "GOVERNMENT" && currentUser.role !== "INTERNAL") {
       return NextResponse.json(
-        { success: false, error: "Forbidden: Only Government agencies or Internal team can close threads." },
+        {
+          success: false,
+          error:
+            "Forbidden: Only Government agencies or Internal team can close threads.",
+        },
         { status: 403 }
       );
+    }
+
+    if (isDemoUser(currentUser)) {
+      return NextResponse.json({
+        success: true,
+        demo: true,
+        data: {
+          postId,
+          status: "CLOSED",
+          closeType: "GENERAL",
+          reportStatus:
+            currentUser.role === "INTERNAL" ? "closed_internal" : "completed",
+          closedById: currentUser.id,
+        },
+      });
     }
 
     const targetPost = await db.query.posts.findFirst({
@@ -31,17 +50,21 @@ export async function POST(req: NextRequest, { params }: Params) {
     }
 
     const now = new Date();
+    const reportStatus =
+      currentUser.role === "INTERNAL" ? "closed_internal" : "completed";
+
     await db
       .update(posts)
       .set({
         status: "CLOSED",
         closeType: "GENERAL",
+        reportStatus,
         closedById: currentUser.id,
+        closedAt: now,
         updatedAt: now,
       })
       .where(eq(posts.id, postId));
 
-    // Optional notification
     if (targetPost.authorId !== currentUser.id) {
       await db.insert(notifications).values({
         id: `notif_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
@@ -49,7 +72,9 @@ export async function POST(req: NextRequest, { params }: Params) {
         actorId: currentUser.id,
         type: "SYSTEM",
         postId,
+        title: "Laporan ditutup",
         message: `Utas laporan Anda telah ditutup oleh ${currentUser.agencyName || currentUser.name}.`,
+        href: `/posts/${postId}`,
         isRead: false,
         createdAt: now,
       });
@@ -61,6 +86,7 @@ export async function POST(req: NextRequest, { params }: Params) {
         postId,
         status: "CLOSED",
         closeType: "GENERAL",
+        reportStatus,
         closedById: currentUser.id,
       },
     });

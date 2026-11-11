@@ -32,6 +32,7 @@ import {
   MediaAttachmentPreview,
   MediaGallery,
   createMediaPreviewUrl,
+  uploadMediaFileToR2,
 } from "@/components/ui/MediaGallery";
 import { EmojiSelectorModal } from "@/components/selectors/EmojiSelectorModal";
 import { InlineTokenSuggest } from "@/components/selectors/InlineTokenSuggest";
@@ -367,6 +368,20 @@ export function CommentThread({
     const added = files.map(createMediaPreviewUrl);
     setImages((current) => [...current, ...added]);
     setError("");
+
+    const targetFolder = actionModeRole ? "evidence" : "posts";
+    files.forEach((file, idx) => {
+      const previewUrl = added[idx];
+      void uploadMediaFileToR2(file, targetFolder, user?.localKey).then(
+        (r2Url) => {
+          if (r2Url && !r2Url.startsWith("data:")) {
+            setImages((current) =>
+              current.map((item) => (item === previewUrl ? r2Url : item)),
+            );
+          }
+        },
+      );
+    });
   }
 
   function handlePasteMedia(event: React.ClipboardEvent<HTMLTextAreaElement>) {
@@ -874,7 +889,7 @@ export function CommentThread({
                       await navigator.clipboard.writeText(
                         `${window.location.origin}/posts/${post.localKey}#comment-${reply.localKey}`,
                       );
-                      showToast("Tautan komentar disalin.", "success");
+                      showToast("Link disalin", "success");
                     } catch {
                       showToast("Tautan komentar gagal disalin.", "error");
                     }

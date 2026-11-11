@@ -8,8 +8,7 @@ export const people: Person[] = [
     username: "alyaputri",
     role: "USER",
     bio: "Suara kecil, perubahan bersama.",
-    image:
-      "https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=240&auto=format&fit=crop",
+    image: "https://s3.kavi.jeki.me/pfp/alya.jpg",
   },
   {
     id: "",
@@ -18,8 +17,7 @@ export const people: Person[] = [
     username: "nadiap",
     role: "USER",
     bio: "Cerita dari sudut kota.",
-    image:
-      "https://images.unsplash.com/photo-1517841905240-472988babdf9?q=80&w=240&auto=format&fit=crop",
+    image: "https://s3.kavi.jeki.me/pfp/nadia.jpg",
   },
   {
     id: "",
@@ -88,9 +86,7 @@ export function seedPosts(baseTime = 1794040000000): Post[] {
     category: "Komunitas",
     tags: ["Bandung", "PejalanKaki", "RuangPublik"],
     agencyKeys: [],
-    images: [
-      "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?q=80&w=720&auto=format&fit=crop",
-    ],
+    images: ["https://s3.kavi.jeki.me/posts/kopi-braga.jpg"],
     upvotesCount: 245,
     vote: null,
     reposted: false,
@@ -131,9 +127,7 @@ export function seedPosts(baseTime = 1794040000000): Post[] {
     province: "Jawa Barat",
     locationName: "Sumur Bandung, Bandung, Jawa Barat",
     category: "Infrastruktur",
-    images: [
-      "https://images.unsplash.com/photo-1578916171728-46686eac8d58?q=80&w=720&auto=format&fit=crop",
-    ],
+    images: ["https://s3.kavi.jeki.me/posts/trotoar-merdeka.jpg"],
     agencyKeys: ["pupr", "dishub"],
     tags: ["TrotoarRusak", "AksesAman", "Bandung"],
     upvotesCount: 86,
@@ -167,9 +161,7 @@ export function seedPosts(baseTime = 1794040000000): Post[] {
         is_action_taken: true,
         actionRole: "GOVERNMENT",
         actionTakenAt: now - 35 * 60000,
-        images: [
-          "https://images.unsplash.com/photo-1589939705384-5185137a7f0f?q=80&w=720&auto=format&fit=crop",
-        ],
+        images: ["https://s3.kavi.jeki.me/evidence/res-road-repair.jpg"],
         upvotesCount: 17,
         downvotesCount: 3,
         vote: null,
@@ -249,9 +241,7 @@ export function seedPosts(baseTime = 1794040000000): Post[] {
     category: "Lingkungan & Kebersihan",
     tags: ["RuangTerbukaHijau", "Lingkungan", "Bandung"],
     agencyKeys: [],
-    images: [
-      "https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?q=80&w=720&auto=format&fit=crop",
-    ],
+    images: ["https://s3.kavi.jeki.me/posts/ruang-hijau.jpg"],
     upvotesCount: 174,
     vote: null,
     reposted: false,
@@ -292,9 +282,7 @@ export function seedPosts(baseTime = 1794040000000): Post[] {
         is_action_taken: true,
         actionRole: "GOVERNMENT",
         actionTakenAt: now - 12 * 3600000,
-        images: [
-          "https://images.unsplash.com/photo-1542744094-3a31f272c490?q=80&w=720&auto=format&fit=crop",
-        ],
+        images: ["https://s3.kavi.jeki.me/evidence/res-paving-done.jpg"],
         upvotesCount: 28,
         downvotesCount: 1,
         vote: null,

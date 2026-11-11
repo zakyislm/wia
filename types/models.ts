@@ -22,6 +22,10 @@ export interface Person {
   bio: string;
   region?: string;
   image?: string;
+  isDemo?: boolean;
+  followersCount?: number;
+  followingCount?: number;
+  postCount?: number;
 }
 
 export interface Reply {

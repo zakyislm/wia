@@ -64,56 +64,7 @@ export function seedWorkspace(): Workspace {
     privacyShowLikes: true,
     privacyAllowMentions: true,
     privacyDefaultAnonymous: false,
-    conversations: [
-      {
-        id: "",
-        localKey: "nadia",
-        partnerKey: "nadia",
-        unread: true,
-        messages: [
-          {
-            id: "",
-            authorId: "",
-            localKey: "hello-nadia",
-            outgoing: false,
-            text: "Besok jadi ikut kegiatan taman?",
-            time: "10.20",
-          },
-        ],
-      },
-      {
-        id: "",
-        localKey: "komunitas",
-        partnerKey: "komunitas",
-        unread: true,
-        messages: [
-          {
-            id: "",
-            authorId: "",
-            localKey: "hello-community",
-            outgoing: false,
-            text: "Halo! Ada ide kegiatan warga untuk akhir pekan ini?",
-            time: "09.45",
-          },
-        ],
-      },
-      {
-        id: "",
-        localKey: "dishub",
-        partnerKey: "dishub",
-        unread: false,
-        messages: [
-          {
-            id: "",
-            authorId: "",
-            localKey: "sent-dishub",
-            outgoing: true,
-            text: "Terima kasih atas perbaikan lampu PJU di perempatan Jl. Riau.",
-            time: "Kemarin",
-          },
-        ],
-      },
-    ],
+    conversations: [],
     verification: {
       id: "",
       status: "none",

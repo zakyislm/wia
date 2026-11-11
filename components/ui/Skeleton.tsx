@@ -274,99 +274,92 @@ export function PageSkeleton({
     );
   }
 
-  const wide = variant === "messages";
-  const showRightSidebar = variant === "feed" || variant === "directory";
-
   return (
-    <div
-      className={`product skeleton-shell-quiet ${wide ? "product--messages" : ""} ${!showRightSidebar ? "product--no-support" : ""}`.trim()}
+    <main
+      className="reading-column skeleton-reading-column"
       role="status"
       aria-live="polite"
       aria-busy="true"
       aria-label="Memuat konten"
     >
-      <div className="product-workspace">
-        <main className="reading-column skeleton-reading-column">
-          {variant === "feed" && (
-            <section className="feed-surface home-feed skeleton-feed-body">
-              <SkeletonPostList count={3} />
-            </section>
-          )}
+      {variant === "feed" && (
+        <section className="feed-surface home-feed skeleton-feed-body">
+          <SkeletonPostList count={3} />
+        </section>
+      )}
 
-          {variant === "directory" && (
-            <section className="feed-surface skeleton-feed-body">
-              <SkeletonPostList count={3} isReport />
-            </section>
-          )}
+      {variant === "directory" && (
+        <section className="feed-surface skeleton-feed-body">
+          <SkeletonPostList count={3} isReport />
+        </section>
+      )}
 
-          {variant === "detail" && (
-            <section className="feed-surface post-detail-surface skeleton-feed-body">
-              <SkeletonPostCard isReport withMedia />
-              <div className="comments">
-                <SkeletonPostCard withMedia={false} />
-                <SkeletonPostCard withMedia={false} />
-              </div>
-            </section>
-          )}
+      {variant === "detail" && (
+        <section className="feed-surface post-detail-surface skeleton-feed-body">
+          <SkeletonPostCard isReport withMedia />
+          <div className="comments">
+            <SkeletonPostCard withMedia={false} />
+            <SkeletonPostCard withMedia={false} />
+          </div>
+        </section>
+      )}
 
-          {variant === "messages" && (
-            <div className="messaging">
-              <section className="conversation-list">
-                <div className="conversation-items-scroll skeleton-inbox-body">
-                  <SkeletonMessageList count={5} />
-                </div>
-              </section>
+      {variant === "messages" && (
+        <div className="messaging">
+          <section className="conversation-list">
+            <div className="conversation-items-scroll skeleton-inbox-body">
+              <SkeletonMessageList count={5} />
             </div>
-          )}
+          </section>
+        </div>
+      )}
 
-          {variant === "notifications" && (
-            <section className="feed-surface notif-surface skeleton-feed-body">
-              <div className="notif-items-list">
-                <SkeletonNotificationList count={5} />
+      {variant === "notifications" && (
+        <section className="feed-surface notif-surface skeleton-feed-body">
+          <div className="notif-items-list">
+            <SkeletonNotificationList count={5} />
+          </div>
+        </section>
+      )}
+
+      {variant === "profile" && (
+        <section className="feed-surface profile-surface">
+          <header className="profile-header">
+            <div className="profile-identity">
+              <div className="skeleton-lines skeleton-flex-1">
+                <SkeletonBlock width={144} height={20} radius={4} />
+                <SkeletonBlock width={96} height={14} radius={4} />
               </div>
-            </section>
-          )}
+              <SkeletonCircle size={84} />
+            </div>
+            <div className="skeleton-lines skeleton-mt-12">
+              <SkeletonBlock width="78%" height={14} radius={4} />
+              <SkeletonBlock width="48%" height={14} radius={4} />
+            </div>
+          </header>
+          <SkeletonPostList count={2} />
+        </section>
+      )}
 
-          {variant === "profile" && (
-            <section className="feed-surface profile-surface">
-              <header className="profile-header">
-                <div className="profile-identity">
-                  <div className="skeleton-lines skeleton-flex-1">
-                    <SkeletonBlock width={144} height={20} radius={4} />
-                    <SkeletonBlock width={96} height={14} radius={4} />
-                  </div>
-                  <SkeletonCircle size={84} />
-                </div>
-                <div className="skeleton-lines skeleton-mt-12">
-                  <SkeletonBlock width="78%" height={14} radius={4} />
-                  <SkeletonBlock width="48%" height={14} radius={4} />
-                </div>
-              </header>
-              <SkeletonPostList count={2} />
-            </section>
-          )}
+      {variant === "activity" && (
+        <section className="feed-surface laporan-surface skeleton-feed-body">
+          <SkeletonActivityList count={5} />
+        </section>
+      )}
 
-          {variant === "activity" && (
-            <section className="feed-surface laporan-surface skeleton-feed-body">
-              <SkeletonActivityList count={5} />
-            </section>
-          )}
-
-          {variant === "settings" && (
-            <section className="feed-surface settings-page">
-              <div className="settings-section">
-                <SkeletonSettingRow />
-                <SkeletonSettingRow hasSwitch />
-                <SkeletonSettingRow hasSwitch />
-              </div>
-              <div className="settings-section">
-                <SkeletonSettingRow hasSwitch />
-                <SkeletonSettingRow />
-              </div>
-            </section>
-          )}
-        </main>
-      </div>
-    </div>
+      {variant === "settings" && (
+        <section className="feed-surface settings-page">
+          <div className="settings-section">
+            <SkeletonSettingRow />
+            <SkeletonSettingRow hasSwitch />
+            <SkeletonSettingRow hasSwitch />
+          </div>
+          <div className="settings-section">
+            <SkeletonSettingRow hasSwitch />
+            <SkeletonSettingRow />
+          </div>
+        </section>
+      )}
+    </main>
   );
 }

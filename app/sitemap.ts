@@ -1,9 +1,9 @@
 import { MetadataRoute } from "next";
 import { db, posts, topics } from "@/db";
-import { eq, desc } from "drizzle-orm";
+import { eq, and, isNull, desc } from "drizzle-orm";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://kavi.id").replace(/\/$/, "");
+  const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://app.kavi.jeki.me").replace(/\/$/, "");
 
   // 1. Static high-level routes
   const staticRoutes: MetadataRoute.Sitemap = [
@@ -28,9 +28,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ];
 
   try {
-    // 2. Fetch latest active posts (up to 500 for Google index)
+    // 2. Fetch latest active root posts (up to 500 for Google index)
     const activePosts = await db.query.posts.findMany({
-      where: eq(posts.isDeleted, false),
+      where: and(eq(posts.isDeleted, false), isNull(posts.parentPostId)),
       columns: {
         id: true,
         status: true,

@@ -15,7 +15,8 @@ import { defaultTopics } from "@/components/selectors/TopicSelectorModal";
 export function ExploreTopicsBar({ activeSlug }: { activeSlug?: string }) {
   const router = useRouter();
   const pathname = usePathname() || "/explore";
-  const { showToast } = useDemo();
+  const { topics, showToast } = useDemo();
+  const displayTopics = topics.length > 0 ? topics : defaultTopics;
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
@@ -41,7 +42,7 @@ export function ExploreTopicsBar({ activeSlug }: { activeSlug?: string }) {
       el.removeEventListener("scroll", checkScroll);
       window.removeEventListener("resize", checkScroll);
     };
-  }, []);
+  }, [displayTopics]);
 
   useEffect(() => {
     if (!activeSlug || !scrollRef.current) return;
@@ -137,7 +138,7 @@ export function ExploreTopicsBar({ activeSlug }: { activeSlug?: string }) {
         >
           Jelajah
         </button>
-        {defaultTopics.map((topic) => (
+        {displayTopics.map((topic) => (
           <button
             key={topic.id}
             type="button"

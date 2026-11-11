@@ -157,7 +157,7 @@ export function ResolutionPanel({ post }: { post: Post }) {
                 </div>
                 <p className="small muted">
                   {resolution.choice
-                    ? "Suaramu tersimpan di sesi demo. Kamu dapat mengubahnya sampai tenggat."
+                    ? "Suaramu telah tercatat. Kamu dapat mengubahnya sampai tenggat."
                     : "Baca bukti sebelum memilih. Persentase terlihat setelah memberikan suara."}
                 </p>
               </>

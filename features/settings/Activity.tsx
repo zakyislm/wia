@@ -248,7 +248,7 @@ export function Activity() {
         />
 
         <p className="tugas-scope-bar">
-          Hanya kamu yang dapat melihat aktivitas sesi demo ini ·{" "}
+          Hanya kamu yang dapat melihat riwayat aktivitas akun ini ·{" "}
           {visible.length} aktivitas
         </p>
 
@@ -270,7 +270,7 @@ export function Activity() {
                     <span className="activity-row-preview">
                       {item.targetPreview}
                     </span>
-                    <small className="muted">Sesi demo · Buka konten asli →</small>
+                    <small className="muted">Buka konten asli →</small>
                   </div>
                   <ChevronRight size={18} className="settings-chevron" />
                 </Link>

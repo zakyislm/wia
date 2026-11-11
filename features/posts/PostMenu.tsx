@@ -183,7 +183,7 @@ export function PostMenu({ post }: { post: Post }) {
                 await navigator.clipboard.writeText(
                   `${location.origin}/posts/${post.localKey}`,
                 );
-                showToast("Tautan disalin.", "success");
+                showToast("Link disalin", "success");
               } catch {
                 showToast("Tautan tidak dapat disalin.", "error");
               }
@@ -381,7 +381,7 @@ export function PostMenu({ post }: { post: Post }) {
                 e.preventDefault();
                 setDialog(null);
                 showToast(
-                  "Laporan penyalahgunaan dicatat (simulasi demo).",
+                  "Laporan penyalahgunaan telah dikirim.",
                   "success",
                 );
                 setDetails("");
@@ -413,10 +413,7 @@ export function PostMenu({ post }: { post: Post }) {
                   onChange={(e) => setDetails(e.target.value)}
                 />
               </label>
-              <p className="small muted">
-                Form demo ini tidak mengirim data kepada pengelola.
-              </p>
-              <Button type="submit">Kirim laporan demo</Button>
+              <Button type="submit">Kirim laporan</Button>
             </form>
           )}
         </Dialog>

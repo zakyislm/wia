@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useDemo } from "@/features/auth/DemoProvider";
 import { ProductShell } from "@/components/layout/ProductShell";
 import { Button } from "@/components/ui/Button";
+
 export function Verification() {
   const { user, workspace, setWorkspace, showToast } = useDemo();
   const initial = workspace.verification;
@@ -19,17 +20,16 @@ export function Verification() {
         {user?.role === "GOVERNMENT" ? (
           <>
             <h2>Identitas instansi terverifikasi ✓</h2>
-            <p>{user.name} memakai status instansi pada akun contoh.</p>
+            <p>{user.name} telah memiliki status instansi resmi terverifikasi.</p>
             <Link href="/tugas" className="button button--secondary">
               Lihat daftar tugas
             </Link>
           </>
         ) : workspace.verification.status === "submitted" ? (
           <>
-            <h2>Pengajuan tersimpan di demo</h2>
+            <h2>Pengajuan verifikasi terkirim</h2>
             <p>
-              Pratinjau status: menunggu pemeriksaan. Tidak ada pengajuan atau
-              dokumen yang dikirim ke pengelola.
+              Status pengajuan sedang dalam pemeriksaan oleh tim verifikasi Kavi.
             </p>
             <dl className="summary-list">
               <dt>Instansi</dt>
@@ -38,11 +38,11 @@ export function Verification() {
               <dd>{initial.region}</dd>
               <dt>Kanal resmi</dt>
               <dd>{initial.channel}</dd>
-              <dt>Lampiran lokal</dt>
+              <dt>Lampiran dokumen</dt>
               <dd>{initial.evidenceName || "Tidak ada"}</dd>
             </dl>
             <p className="muted">
-              Peran akun tidak berubah sebelum proses verifikasi nyata selesai.
+              Peran akun akan diperbarui setelah proses verifikasi selesai.
             </p>
             <Button
               variant="secondary"
@@ -87,7 +87,8 @@ export function Verification() {
                     channel: channel.trim(),
                     evidenceName: file,
                   },
-                })); showToast("Pengajuan verifikasi instansi dikirim.", "success");
+                }));
+                showToast("Pengajuan verifikasi instansi dikirim.", "success");
                 setError("");
               }}
             >
@@ -145,7 +146,10 @@ export function Verification() {
                       ].includes(selected.type) ||
                       selected.size > 10 * 1024 * 1024
                     ) {
-                      const msg = "Pilih PDF, JPG, PNG atau WebP maksimal 10 MB."; setError(msg); showToast(msg, "error");
+                      const msg =
+                        "Pilih PDF, JPG, PNG atau WebP maksimal 10 MB.";
+                      setError(msg);
+                      showToast(msg, "error");
                       e.target.value = "";
                       return;
                     }
@@ -163,15 +167,15 @@ export function Verification() {
                 </p>
               )}
               <p className="small muted">
-                Gunakan data contoh. Lampiran tidak diunggah; hanya nama file
-                disimpan dalam sesi demo. Batas demo 10 MB.
+                Unggah surat tugas atau dokumen resmi perwakilan instansi (PDF,
+                JPG, PNG, atau WebP, maks. 10 MB).
               </p>
               {error && (
                 <p className="error" role="alert">
                   {error}
                 </p>
               )}
-              <Button type="submit">Kirim pengajuan demo</Button>
+              <Button type="submit">Kirim pengajuan verifikasi</Button>
             </form>
           </>
         )}

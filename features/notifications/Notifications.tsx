@@ -24,74 +24,84 @@ interface NotifItem {
   time: string;
 }
 
-const baseNotifItems: NotifItem[] = [
-  {
-    key: "evidence",
-    actor: "pupr",
-    title: "Dinas PUPR mengajukan penyelesaian",
-    body: "Lihat bukti dan ikut menilai hasilnya.",
-    href: "/posts/trotoar-merdeka#evidence",
-    category: "activity",
-    time: "Baru saja",
-  },
-  {
-    key: "reply-1",
-    actor: "komunitas",
-    title: "Balasan baru dalam percakapan",
-    body: "Percakapan warga terus berlanjut di laporan trotoar.",
-    href: "/posts/trotoar-merdeka",
-    category: "replies",
-    time: "15m",
-  },
-  {
-    key: "closed",
-    actor: "pupr",
-    title: "Validasi selesai · Laporan Ditutup",
-    body: "Lihat bukti, hasil validasi dan riwayat percakapan.",
-    href: "/posts/contoh-success#evidence",
-    category: "activity",
-    time: "1j",
-  },
-  {
-    key: "reply-2",
-    actor: "nadia",
-    title: "Nadia membalas komentar Anda",
-    body: "Setuju banget, akhir pekan ini kita gotong royong bareng ya!",
-    href: "/posts/trotoar-merdeka",
-    category: "replies",
-    time: "2j",
-  },
-  {
-    key: "follow",
-    actor: "nadia",
-    title: "Nadia mulai mengikutimu",
-    body: "Temukan cerita dan suara baru dari warga sekitar.",
-    href: "/profile/nadia",
-    category: "activity",
-    time: "3j",
-  },
-  {
-    key: "report-status",
-    actor: "dishub",
-    title: "Dishub memperbarui status fasilitas",
-    body: "Pekerjaan lapangan telah dijadwalkan oleh dinas terkait.",
-    href: "/posts/trotoar-merdeka",
-    category: "activity",
-    time: "1h",
-  },
-];
-
 export function Notifications() {
-  const { workspace, setWorkspace, people, showToast } = useDemo();
+  const {
+    workspace,
+    setWorkspace,
+    people,
+    posts,
+    user,
+    dbNotifications = [],
+    isDemoAccount,
+    showToast,
+  } = useDemo();
   const [tab, setTab] = useState<NotifFilter>("all");
   const [isSelecting, setIsSelecting] = useState(false);
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [deletedKeys, setDeletedKeys] = useState<Set<string>>(new Set());
 
+  // 100% DB-backed notifications + live session replies
+  const mergedNotifItems = useMemo<NotifItem[]>(() => {
+    const items: NotifItem[] = [];
+    const seenKeys = new Set<string>();
+
+    for (const dbn of dbNotifications) {
+      if (seenKeys.has(dbn.key)) continue;
+      seenKeys.add(dbn.key);
+      const ageMin = Math.max(1, Math.round((Date.now() - dbn.createdAt) / 60000));
+      const timeStr =
+        ageMin < 5
+          ? "Baru saja"
+          : ageMin < 60
+            ? `${ageMin}m`
+            : `${Math.round(ageMin / 60)}j`;
+      items.push({
+        key: dbn.key,
+        actor: dbn.actorKey || "pupr",
+        title: dbn.title,
+        body: dbn.body,
+        href: dbn.href,
+        category:
+          dbn.title.toLowerCase().includes("membalas") ||
+          dbn.title.toLowerCase().includes("balasan")
+            ? "replies"
+            : "activity",
+        time: timeStr,
+      });
+    }
+
+    // Also derive live notifications from replies on current user's posts
+    if (user) {
+      for (const post of posts) {
+        if (post.authorKey !== user.localKey) continue;
+        for (const reply of post.replies || []) {
+          if (reply.authorKey === user.localKey) continue;
+          const k = `live_reply_${reply.localKey}`;
+          if (seenKeys.has(k)) continue;
+          seenKeys.add(k);
+          const actorPerson = people.find((p) => p.localKey === reply.authorKey);
+          items.push({
+            key: k,
+            actor: reply.authorKey,
+            title: reply.is_action_taken
+              ? `${actorPerson?.name || "Instansi"} menindaklanjuti laporan Anda`
+              : `${actorPerson?.name || "Warga"} membalas di diskusi Anda`,
+            body: reply.content.slice(0, 120),
+            href: `/posts/${post.localKey}`,
+            category: reply.is_action_taken ? "activity" : "replies",
+            time: "Baru saja",
+          });
+        }
+      }
+    }
+
+    return items;
+  }, [dbNotifications, posts, people, user]);
+
   // Filter out deleted items
   const activeItems = useMemo(() => {
-    return baseNotifItems.filter((item) => !deletedKeys.has(item.key));
-  }, [deletedKeys]);
+    return mergedNotifItems.filter((item) => !deletedKeys.has(item.key));
+  }, [mergedNotifItems, deletedKeys]);
 
   // Counts for each tab
   const counts = useMemo(() => {
@@ -185,6 +195,13 @@ export function Notifications() {
         new Set([...current.readNotifications, ...keys]),
       ),
     }));
+    if (!isDemoAccount) {
+      void fetch("/api/notifications", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notificationIds: keys }),
+      }).catch(() => {});
+    }
     setSelectedKeys(new Set());
     setIsSelecting(false);
   };
@@ -192,6 +209,13 @@ export function Notifications() {
   const handleDeleteSelected = () => {
     const keys = Array.from(selectedKeys);
     setDeletedKeys((prev) => new Set([...prev, ...keys]));
+    if (!isDemoAccount) {
+      void fetch("/api/notifications", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notificationIds: keys }),
+      }).catch(() => {});
+    }
     setSelectedKeys(new Set());
     setIsSelecting(false);
   };
@@ -202,6 +226,13 @@ export function Notifications() {
       ...current,
       readNotifications: [...new Set([...current.readNotifications, key])],
     }));
+    if (!isDemoAccount) {
+      void fetch("/api/notifications", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notificationIds: [key] }),
+      }).catch(() => {});
+    }
   }
 
   return (

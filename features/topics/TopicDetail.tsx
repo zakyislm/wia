@@ -76,7 +76,7 @@ export function sortTopicPosts(
 }
 
 export function TopicDetail({ slug }: { slug: string }) {
-  const { posts, showToast } = useDemo();
+  const { posts, topics, showToast } = useDemo();
   const searchParams = useSearchParams();
   const queryParam = searchParams.get("q") || "";
   const [subtab, setSubtab] = useState<TopicSubtab>("semua");
@@ -88,12 +88,16 @@ export function TopicDetail({ slug }: { slug: string }) {
     setRandomSalt(Math.floor(Math.random() * 1_000_000) + 1);
   }, []);
 
-  const cleanSlug = resolveCanonicalTopicSlug(slug);
+  const dbTopic = topics.find((t) => t.slug === slug);
+  const cleanSlug = dbTopic?.slug || resolveCanonicalTopicSlug(slug);
   const compactTarget = cleanSlug.replace(/-/g, "");
 
   const matchingPosts = useMemo(() => {
     const filtered = posts.filter((post) => {
       if (post.isDeleted || post.hidden) return false;
+      if (dbTopic && (post.topicId === dbTopic.id || post.topicSlug === dbTopic.slug)) {
+        return true;
+      }
       const postSlug = resolveCanonicalTopicSlug(
         post.topicSlug ||
           toTopicSlug(post.topicName || post.category || ""),
@@ -104,9 +108,9 @@ export function TopicDetail({ slug }: { slug: string }) {
       );
     });
     return sortTopicPosts(filtered, subtab, nowMs, randomSalt);
-  }, [posts, cleanSlug, compactTarget, subtab, nowMs, randomSalt]);
+  }, [posts, dbTopic, cleanSlug, compactTarget, subtab, nowMs, randomSalt]);
 
-  const topicName = findTopicNameBySlug(cleanSlug);
+  const topicName = dbTopic?.name || findTopicNameBySlug(cleanSlug);
 
   const {
     visibleItems: visiblePosts,

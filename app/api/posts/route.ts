@@ -1,9 +1,109 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, posts, users, topics, tags, postTags, votes, savedPosts, reposts, hiddenPosts, mutedUsers, blockedUsers, follows } from "@/db";
-import { eq, and, desc, notInArray, inArray, sql } from "drizzle-orm";
-import { getSessionUser } from "@/lib/auth-helper";
+import {
+  db,
+  posts,
+  comments,
+  users,
+  topics,
+  tags,
+  postTags,
+  postAgencies,
+  votes,
+  savedPosts,
+  reposts,
+  hiddenPosts,
+  mutedUsers,
+  blockedUsers,
+  follows,
+  notifications,
+} from "@/db";
+import { eq, and, desc, notInArray, inArray, isNull, sql } from "drizzle-orm";
+import { getOptionalSessionUser, getSessionUser, isDemoUser } from "@/lib/auth-helper";
 import { enforceRateLimit } from "@/lib/rate-limit";
 import { isDuplicateRequest } from "@/lib/debounce";
+
+/**
+ * Dynamic For-You feed scoring algorithm:
+ * Combines engagement velocity, recency decay, regional affinity, and social graph affinity.
+ */
+function computeForYouScore(
+  post: any,
+  opts: {
+    userProvince?: string | null;
+    followingSet: Set<string>;
+    preferredTopics: Set<string>;
+    nowMs: number;
+  }
+): number {
+  const postedMs =
+    post.postedAt instanceof Date
+      ? post.postedAt.getTime()
+      : Number(post.postedAt || opts.nowMs);
+  const ageHours = Math.max(0.25, (opts.nowMs - postedMs) / (1000 * 60 * 60));
+
+  const engagement =
+    (post.upvotesCount || 0) * 3 +
+    (post.commentsCount || 0) * 4.5 +
+    (post.repostsCount || 0) * 5 +
+    (post.viewsCount || 0) * 0.08 -
+    (post.downvotesCount || 0) * 1.5;
+
+  const recencyDecay = Math.pow(ageHours + 2, 1.15);
+  let score = engagement / recencyDecay;
+
+  // Affinity boosts
+  if (post.isPinned) score += 1000;
+  if (opts.followingSet.has(post.authorId)) score += 35;
+  if (
+    opts.userProvince &&
+    post.province &&
+    opts.userProvince.toLowerCase().includes(post.province.toLowerCase())
+  ) {
+    score += 25;
+  }
+  if (post.topic?.name && opts.preferredTopics.has(post.topic.name.toLowerCase())) {
+    score += 20;
+  }
+  if (post.kind === "report" && post.reportStatus === "in_progress") {
+    score += 18;
+  }
+
+  return score;
+}
+
+/**
+ * Dynamic Explore scoring algorithm (semua | ramai | terbaru)
+ */
+function computeExploreScore(
+  post: any,
+  sort: string,
+  nowMs: number
+): number {
+  const postedMs =
+    post.postedAt instanceof Date
+      ? post.postedAt.getTime()
+      : Number(post.postedAt || nowMs);
+
+  if (sort === "terbaru") {
+    return postedMs;
+  }
+
+  const heat =
+    (post.upvotesCount || 0) * 2.5 +
+    (post.downvotesCount || 0) +
+    (post.commentsCount || 0) * 4 +
+    (post.repostsCount || 0) * 4.5 +
+    (post.viewsCount || 0) * 0.1;
+
+  if (sort === "ramai") {
+    return heat * 1000 + postedMs * 0.00001;
+  }
+
+  // "semua": balanced discovery score (engagement + recency + civic report relevance)
+  const ageHours = Math.max(0.5, (nowMs - postedMs) / (1000 * 60 * 60));
+  const civicBoost = post.kind === "report" ? 1.25 : 1.0;
+  return (heat * civicBoost) / Math.pow(ageHours + 3, 0.85);
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -11,34 +111,61 @@ export async function GET(req: NextRequest) {
     const tab = (searchParams.get("tab") || "foryou").toLowerCase();
     const province = searchParams.get("province");
     const topicId = searchParams.get("topicId");
+    const kindParam = searchParams.get("kind");
     const tag = searchParams.get("tag");
     const sort = (searchParams.get("sort") || "semua").toLowerCase();
-    const limit = Math.min(parseInt(searchParams.get("limit") || "20", 10), 50);
+    const limit = Math.min(parseInt(searchParams.get("limit") || "50", 10), 100);
 
-    const currentUser = await getSessionUser(req);
-    const userId = currentUser.id;
+    const currentUser = await getOptionalSessionUser(req);
+    const userId = currentUser?.id || null;
 
-    // 1. Collect user filters: hidden posts, muted users, blocked users
-    const [hiddenList, mutedList, blockedList, followingList] = await Promise.all([
-      db.select({ postId: hiddenPosts.postId }).from(hiddenPosts).where(eq(hiddenPosts.userId, userId)),
-      db.select({ mutedId: mutedUsers.mutedUserId }).from(mutedUsers).where(eq(mutedUsers.userId, userId)),
-      db.select({ blockedId: blockedUsers.blockedUserId }).from(blockedUsers).where(eq(blockedUsers.userId, userId)),
-      tab === "following"
-        ? db.select({ followingId: follows.followingId }).from(follows).where(eq(follows.followerId, userId))
-        : Promise.resolve([]),
-    ]);
+    // 1. Collect user filters if authenticated
+    const [hiddenList, mutedList, blockedList, followingList] = userId
+      ? await Promise.all([
+          db
+            .select({ postId: hiddenPosts.postId })
+            .from(hiddenPosts)
+            .where(eq(hiddenPosts.userId, userId)),
+          db
+            .select({ mutedId: mutedUsers.mutedUserId })
+            .from(mutedUsers)
+            .where(eq(mutedUsers.userId, userId)),
+          db
+            .select({ blockedId: blockedUsers.blockedUserId })
+            .from(blockedUsers)
+            .where(eq(blockedUsers.userId, userId)),
+          db
+            .select({ followingId: follows.followingId })
+            .from(follows)
+            .where(eq(follows.followerId, userId)),
+        ])
+      : [[], [], [], []];
 
     const excludedPostIds = hiddenList.map((h) => h.postId);
     const excludedUserIds = Array.from(
-      new Set([...mutedList.map((m) => m.mutedId), ...blockedList.map((b) => b.blockedId)])
+      new Set([
+        ...mutedList.map((m) => m.mutedId),
+        ...blockedList.map((b) => b.blockedId),
+      ])
     );
+    const followingIds = followingList.map((f) => f.followingId);
+    const followingSet = new Set(followingIds);
 
-    // 2. Build where conditions
-    const conditions = [
+    // 2. Build where conditions (Option A: only root posts have parentPostId IS NULL)
+    const conditions: any[] = [
       eq(posts.isDeleted, false),
-      tab === "archive" ? eq(posts.status, "CLOSED") : eq(posts.status, "OPEN"),
+      isNull(posts.parentPostId),
     ];
 
+    if (tab === "archive") {
+      conditions.push(eq(posts.status, "CLOSED"));
+    } else if (tab === "open") {
+      conditions.push(eq(posts.status, "OPEN"));
+    }
+
+    if (kindParam === "report" || kindParam === "general") {
+      conditions.push(eq(posts.kind, kindParam));
+    }
     if (province) conditions.push(eq(posts.province, province));
     if (topicId) conditions.push(eq(posts.topicId, topicId));
 
@@ -50,28 +177,21 @@ export async function GET(req: NextRequest) {
     }
 
     if (tab === "following") {
-      const followingIds = followingList.map((f) => f.followingId);
       if (followingIds.length === 0) {
-        return NextResponse.json({ success: true, data: [] });
+        return NextResponse.json({
+          success: true,
+          algorithm: "following",
+          data: [],
+        });
       }
       conditions.push(inArray(posts.authorId, followingIds));
     }
 
-    const orderBy =
-      sort === "ramai"
-        ? [
-            desc(sql`${posts.upvotesCount} + ${posts.downvotesCount} + ${posts.commentsCount}`),
-            desc(posts.postedAt),
-          ]
-        : sort === "terbaru"
-          ? [desc(posts.postedAt)]
-          : [desc(posts.isPinned), desc(posts.postedAt)];
-
-    // 3. Query posts with relation joins
+    // 3. Query root posts with relations
     const rawPosts = await db.query.posts.findMany({
       where: and(...conditions),
-      orderBy,
-      limit,
+      orderBy: [desc(posts.isPinned), desc(posts.postedAt)],
+      limit: Math.max(limit, 50),
       with: {
         author: {
           columns: {
@@ -82,6 +202,7 @@ export async function GET(req: NextRequest) {
             role: true,
             agencyName: true,
             jurisdictionProvince: true,
+            region: true,
           },
         },
         topic: {
@@ -96,6 +217,7 @@ export async function GET(req: NextRequest) {
             tag: true,
           },
         },
+        postAgencies: true,
         closedBy: {
           columns: {
             id: true,
@@ -111,24 +233,37 @@ export async function GET(req: NextRequest) {
 
     // 4. Batch check current user engagement (votes, saved, reposted)
     const postIds = rawPosts.map((p) => p.id);
-    let userVotes: Record<string, "UP" | "DOWN"> = {};
-    let userSaved: Set<string> = new Set();
-    let userReposted: Set<string> = new Set();
+    const userVotes: Record<string, "UP" | "DOWN"> = {};
+    const userSaved = new Set<string>();
+    const userReposted = new Set<string>();
 
-    if (postIds.length > 0) {
+    if (userId && postIds.length > 0) {
       const [votesData, savedData, repostsData] = await Promise.all([
         db
           .select({ targetId: votes.targetId, voteType: votes.voteType })
           .from(votes)
-          .where(and(eq(votes.userId, userId), eq(votes.targetType, "POST"), inArray(votes.targetId, postIds))),
+          .where(
+            and(
+              eq(votes.userId, userId),
+              eq(votes.targetType, "POST"),
+              inArray(votes.targetId, postIds)
+            )
+          ),
         db
           .select({ postId: savedPosts.postId })
           .from(savedPosts)
-          .where(and(eq(savedPosts.userId, userId), inArray(savedPosts.postId, postIds))),
+          .where(
+            and(
+              eq(savedPosts.userId, userId),
+              inArray(savedPosts.postId, postIds)
+            )
+          ),
         db
           .select({ postId: reposts.postId })
           .from(reposts)
-          .where(and(eq(reposts.userId, userId), inArray(reposts.postId, postIds))),
+          .where(
+            and(eq(reposts.userId, userId), inArray(reposts.postId, postIds))
+          ),
       ]);
 
       votesData.forEach((v) => (userVotes[v.targetId] = v.voteType));
@@ -137,25 +272,57 @@ export async function GET(req: NextRequest) {
     }
 
     // Filter by tag if requested
-    let result = rawPosts;
+    let filtered = rawPosts;
     if (tag) {
-      result = rawPosts.filter((p) =>
+      filtered = rawPosts.filter((p) =>
         p.postTags.some((pt) => pt.tag.name.toLowerCase() === tag.toLowerCase())
       );
     }
 
-    // 5. Format payload
-    const formatted = result.map((post) => ({
+    // 5. Apply Dynamic Feed Algorithm (Home: foryou / following, Explore: semua / ramai / terbaru)
+    const nowMs = Date.now();
+    const userProvince =
+      currentUser?.region || currentUser?.jurisdictionProvince || null;
+
+    const scored = filtered.map((post) => {
+      const algorithmScore =
+        searchParams.has("sort") || tab === "explore"
+          ? computeExploreScore(post, sort, nowMs)
+          : tab === "foryou"
+            ? computeForYouScore(post, {
+                userProvince,
+                followingSet,
+                preferredTopics: new Set(),
+                nowMs,
+              })
+            : post.postedAt instanceof Date
+              ? post.postedAt.getTime()
+              : Number(post.postedAt || nowMs);
+
+      return { post, algorithmScore };
+    });
+
+    scored.sort((a, b) => b.algorithmScore - a.algorithmScore);
+    const sliced = scored.slice(0, limit);
+
+    // 6. Format payload
+    const formatted = sliced.map(({ post, algorithmScore }) => ({
       id: post.id,
+      localKey: post.id,
+      kind: post.kind,
+      reportStatus: post.reportStatus,
       title: post.title,
       content: post.content,
       images: post.images || [],
       locationName: post.locationName,
-      province: post.province,
+      province: post.province || "Indonesia",
+      category: post.topic?.name || "Komunitas",
       latitude: post.latitude,
       longitude: post.longitude,
       status: post.status,
       closeType: post.closeType,
+      closedById: post.closedById,
+      closedAt: post.closedAt,
       resolutionCommentId: post.resolutionCommentId,
       upvotesCount: post.upvotesCount,
       downvotesCount: post.downvotesCount,
@@ -165,6 +332,8 @@ export async function GET(req: NextRequest) {
       isAnonymous: post.isAnonymous,
       isPinned: post.isPinned,
       postedAt: post.postedAt,
+      algorithmScore: Math.round(algorithmScore * 100) / 100,
+      agencyKeys: post.postAgencies.map((pa) => pa.agencyUserId),
       author: post.isAnonymous
         ? {
             id: "anonymous",
@@ -189,6 +358,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      algorithm: searchParams.has("sort") ? `explore:${sort}` : `home:${tab}`,
       data: formatted,
     });
   } catch (error) {
@@ -204,58 +374,72 @@ export async function POST(req: NextRequest) {
   try {
     const currentUser = await getSessionUser(req);
 
-    // Rate Limit: Max 5 posts per minute per citizen
-    const rateLimitError = enforceRateLimit(req, currentUser.id, { limit: 5, windowMs: 60000 }, "create-post");
+    // Rate Limit: Max 10 posts per minute per citizen
+    const rateLimitError = enforceRateLimit(
+      req,
+      currentUser.id,
+      { limit: 10, windowMs: 60000 },
+      "create-post"
+    );
     if (rateLimitError) return rateLimitError;
 
     const body = await req.json();
 
     const {
+      id: requestedId,
+      kind: rawKind,
+      parentPostId = null,
+      rootPostId = null,
       title,
       content,
       topicId,
+      category,
       locationName,
       province,
       latitude,
       longitude,
       images = [],
       tags: inputTags = [],
+      agencyKeys = [],
       isAnonymous = false,
+      anonymous = false,
+      isActionTaken = false,
     } = body;
 
+    const kind: "general" | "report" | "reply" =
+      rawKind === "general" || rawKind === "report" || rawKind === "reply"
+        ? rawKind
+        : parentPostId
+          ? "reply"
+          : agencyKeys?.length > 0 || (title && locationName)
+            ? "report"
+            : "general";
+
+    const anonFlag = Boolean(isAnonymous || anonymous);
+
     // Prevent rapid double-click duplicate post submission
-    if (isDuplicateRequest(`post:${currentUser.id}:${title?.trim()}`, 2000)) {
+    if (
+      isDuplicateRequest(
+        `post:${currentUser.id}:${kind}:${(title || content || "").trim().slice(0, 40)}`,
+        1500
+      )
+    ) {
       return NextResponse.json(
-        { success: false, error: "Duplicate submission detected. Please wait a moment." },
+        {
+          success: false,
+          error: "Duplicate submission detected. Please wait a moment.",
+        },
         { status: 429 }
       );
     }
 
-    // Validations
-    if (!title || typeof title !== "string" || title.trim().length < 3) {
+    if (!content || typeof content !== "string" || content.trim().length < 2) {
       return NextResponse.json(
-        { success: false, error: "Title is required (minimum 3 characters)" },
+        { success: false, error: "Content is required" },
         { status: 400 }
       );
     }
-    if (!content || typeof content !== "string" || content.trim().length < 10) {
-      return NextResponse.json(
-        { success: false, error: "Content is required (minimum 10 characters)" },
-        { status: 400 }
-      );
-    }
-    if (!topicId || typeof topicId !== "string") {
-      return NextResponse.json(
-        { success: false, error: "Macro Topic is required" },
-        { status: 400 }
-      );
-    }
-    if (!locationName || !province) {
-      return NextResponse.json(
-        { success: false, error: "Location name and province are required" },
-        { status: 400 }
-      );
-    }
+
     if (Array.isArray(images) && images.length > 6) {
       return NextResponse.json(
         { success: false, error: "Maximum 6 images allowed per post" },
@@ -263,32 +447,161 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const now = new Date();
-    const newPostId = `post_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    // Demo sandbox accounts never write to Turso DB
+    if (isDemoUser(currentUser)) {
+      return NextResponse.json(
+        {
+          success: true,
+          demo: true,
+          data: {
+            id: requestedId || `demo_post_${Date.now()}`,
+            kind,
+            message: "Demo post simulated in client state",
+          },
+        },
+        { status: 201 }
+      );
+    }
 
-    // 1. Insert post
+    const now = new Date();
+    const newPostId =
+      requestedId && typeof requestedId === "string"
+        ? requestedId
+        : `post_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+
+    // Resolve topicId from category name if needed
+    let resolvedTopicId: string | null = topicId || null;
+    if (!resolvedTopicId && category) {
+      const matchedTopic = await db.query.topics.findFirst({
+        where: sql`lower(${topics.name}) = ${String(category).trim().toLowerCase()}`,
+      });
+      if (matchedTopic) {
+        resolvedTopicId = matchedTopic.id;
+      }
+    }
+    if (!resolvedTopicId && kind === "report") {
+      const [fallbackTopic] = await db.select({ id: topics.id }).from(topics).limit(1);
+      resolvedTopicId = fallbackTopic?.id || "top_infra";
+    }
+
+    if (kind === "report") {
+      const effectiveLocation = (locationName || province || "").trim();
+      const effectiveProvince = (province || locationName || "").trim();
+      if (!effectiveLocation || !effectiveProvince) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "Location name and province are required for civic reports",
+          },
+          { status: 400 }
+        );
+      }
+    }
+
+    const actionTakenFlag =
+      Boolean(isActionTaken) &&
+      (currentUser.role === "GOVERNMENT" || currentUser.role === "INTERNAL");
+
+    // 1. Insert unified post row (Option A)
     await db.insert(posts).values({
       id: newPostId,
       authorId: currentUser.id,
-      topicId,
-      title: title.trim(),
+      kind,
+      parentPostId: parentPostId || null,
+      rootPostId: rootPostId || parentPostId || null,
+      topicId: resolvedTopicId,
+      title:
+        title?.trim() ||
+        (kind === "report"
+          ? content.trim().slice(0, 72)
+          : null),
       content: content.trim(),
       images: Array.isArray(images) ? images : [],
-      locationName: locationName.trim(),
-      province: province.trim(),
+      locationName: locationName?.trim() || null,
+      province: province?.trim() || (kind === "general" ? "Indonesia" : null),
       latitude: latitude ? parseFloat(latitude) : null,
       longitude: longitude ? parseFloat(longitude) : null,
       status: "OPEN",
       closeType: "NONE",
-      isAnonymous: Boolean(isAnonymous),
+      reportStatus: kind === "report" ? "waiting" : null,
+      isActionTaken: actionTakenFlag,
+      actionRole: actionTakenFlag
+        ? (currentUser.role as "GOVERNMENT" | "INTERNAL")
+        : null,
+      actionTakenAt: actionTakenFlag ? now : null,
+      isAnonymous: anonFlag,
       postedAt: now,
       updatedAt: now,
     });
 
-    // 2. Process and attach micro tags
+    // If kind === "reply", mirror into comments table & update root post
+    if (kind === "reply" && (rootPostId || parentPostId)) {
+      const targetRootId = rootPostId || parentPostId;
+      await db
+        .insert(comments)
+        .values({
+          id: newPostId,
+          postId: targetRootId,
+          authorId: currentUser.id,
+          parentId:
+            parentPostId && parentPostId !== targetRootId ? parentPostId : null,
+          content: content.trim(),
+          images: Array.isArray(images) ? images : [],
+          isActionTaken: actionTakenFlag,
+          isAnonymous: anonFlag,
+          createdAt: now,
+          updatedAt: now,
+        })
+        .onConflictDoNothing();
+
+      await db
+        .update(posts)
+        .set({
+          commentsCount: sql`${posts.commentsCount} + 1`,
+          ...(actionTakenFlag
+            ? {
+                reportStatus: "in_progress",
+                resolutionCommentId: newPostId,
+                updatedAt: now,
+              }
+            : {}),
+        })
+        .where(eq(posts.id, targetRootId));
+    }
+
+    // 2. Attach tagged agencies (`postAgencies`) and notify them
+    if (Array.isArray(agencyKeys) && agencyKeys.length > 0) {
+      for (const agencyId of agencyKeys) {
+        if (!agencyId) continue;
+        await db
+          .insert(postAgencies)
+          .values({
+            postId: newPostId,
+            agencyUserId: String(agencyId),
+          })
+          .onConflictDoNothing();
+
+        if (agencyId !== currentUser.id) {
+          await db.insert(notifications).values({
+            id: `notif_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+            recipientId: String(agencyId),
+            actorId: currentUser.id,
+            type: "SYSTEM",
+            postId: newPostId,
+            title: "Laporan warga baru menandai instansi Anda",
+            message: content.trim().slice(0, 120),
+            href: `/posts/${newPostId}`,
+            isRead: false,
+            createdAt: now,
+          });
+        }
+      }
+    }
+
+    // 3. Process and attach micro tags
     if (Array.isArray(inputTags) && inputTags.length > 0) {
       for (const rawTag of inputTags) {
-        const cleanName = rawTag.replace(/^#/, "").trim();
+        const cleanName = String(rawTag).replace(/^#/, "").trim();
         if (!cleanName) continue;
 
         let existingTag = await db.query.tags.findFirst({
@@ -303,28 +616,39 @@ export async function POST(req: NextRequest) {
             color: null,
             createdAt: now,
           });
-          existingTag = { id: newTagId, name: cleanName, color: null, createdAt: now };
+          existingTag = {
+            id: newTagId,
+            name: cleanName,
+            color: null,
+            createdAt: now,
+          };
         }
 
-        await db.insert(postTags).values({
-          postId: newPostId,
-          tagId: existingTag.id,
-        });
+        await db
+          .insert(postTags)
+          .values({
+            postId: newPostId,
+            tagId: existingTag.id,
+          })
+          .onConflictDoNothing();
       }
     }
 
-    // 3. Increment author post count
-    await db
-      .update(users)
-      .set({ postCount: sql`${users.postCount} + 1` })
-      .where(eq(users.id, currentUser.id));
+    // 4. Increment author post count for root posts
+    if (kind !== "reply") {
+      await db
+        .update(users)
+        .set({ postCount: sql`${users.postCount} + 1` })
+        .where(eq(users.id, currentUser.id));
+    }
 
     return NextResponse.json(
       {
         success: true,
         data: {
           id: newPostId,
-          message: "Report published successfully",
+          kind,
+          message: "Post published successfully",
         },
       },
       { status: 201 }

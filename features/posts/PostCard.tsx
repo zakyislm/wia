@@ -377,7 +377,7 @@ export function PostCard({
           onClick={async () => {
             try {
               await navigator.clipboard.writeText(`${location.origin}${href}`);
-              showToast("Tautan disalin.", "success");
+              showToast("Link disalin", "success");
             } catch {
               showToast(
                 "Tautan tidak dapat disalin. Salin alamat dari halaman detail.",

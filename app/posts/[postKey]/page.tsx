@@ -1,9 +1,95 @@
 import type { Metadata } from "next";
-import { Suspense } from "react";
 import { PostDetail } from "@/features/posts/PostDetail";
-import { PageSkeleton } from "@/components/ui/Skeleton";
-import { people, seedPosts } from "@/mocks/data";
-import { formatPostPageTitle } from "@/lib/title";
+import { db, posts } from "@/db";
+import { eq, and } from "drizzle-orm";
+import {
+  generatePostMetadata,
+  generatePostJsonLd,
+  generateBreadcrumbJsonLd,
+  type PostSeoData,
+} from "@/lib/seo";
+
+async function fetchPostSeoData(postKey: string): Promise<PostSeoData | null> {
+  try {
+    const [dbPost, resolutionReply] = await Promise.all([
+      db.query.posts.findFirst({
+        where: eq(posts.id, postKey),
+        with: {
+          author: true,
+          topic: true,
+          postTags: {
+            with: { tag: true },
+          },
+        },
+      }),
+      db.query.posts.findFirst({
+        where: and(
+          eq(posts.rootPostId, postKey),
+          eq(posts.isActionTaken, true),
+          eq(posts.isDeleted, false),
+        ),
+        with: {
+          author: true,
+        },
+      }),
+    ]);
+
+    if (!dbPost || dbPost.isDeleted) return null;
+
+    const authorName = dbPost.isAnonymous
+      ? "Warga Anonim"
+      : dbPost.author?.name || "Warga Kavi";
+    const authorUsername = dbPost.isAnonymous
+      ? "anonim"
+      : dbPost.author?.username || dbPost.authorId;
+    const rawSnippet = dbPost.content.replace(/\s+/g, " ").trim().slice(0, 72);
+    const derivedTitle =
+      dbPost.title?.trim() || `${authorName}: "${rawSnippet}"`;
+    const tagNames = (dbPost.postTags || [])
+      .map((pt) => pt.tag?.name)
+      .filter((n): n is string => Boolean(n));
+
+    return {
+      id: dbPost.id,
+      title: derivedTitle,
+      content: dbPost.content,
+      images: Array.isArray(dbPost.images) ? dbPost.images : [],
+      locationName: dbPost.locationName,
+      province: dbPost.province,
+      status: dbPost.status,
+      closeType: dbPost.closeType,
+      upvotesCount: dbPost.upvotesCount || 0,
+      commentsCount: dbPost.commentsCount || 0,
+      postedAt: dbPost.postedAt,
+      updatedAt: dbPost.updatedAt,
+      tags: tagNames,
+      author: {
+        name: authorName,
+        username: authorUsername,
+        image: dbPost.isAnonymous ? null : dbPost.author?.image,
+        role: dbPost.author?.role,
+        agencyName: dbPost.author?.agencyName,
+      },
+      topic: dbPost.topic
+        ? { name: dbPost.topic.name, slug: dbPost.topic.slug }
+        : null,
+      resolutionComment: resolutionReply
+        ? {
+            content: resolutionReply.content,
+            createdAt: resolutionReply.postedAt,
+            author: {
+              name: resolutionReply.author?.name || "Instansi Terkait",
+              agencyName:
+                resolutionReply.author?.agencyName ||
+                resolutionReply.author?.name,
+            },
+          }
+        : null,
+    };
+  } catch {
+    return null;
+  }
+}
 
 export async function generateMetadata({
   params,
@@ -11,25 +97,55 @@ export async function generateMetadata({
   params: Promise<{ postKey: string }>;
 }): Promise<Metadata> {
   const { postKey } = await params;
-  const post = seedPosts().find((item) => item.localKey === postKey);
-  if (!post) return { title: "Postingan" };
-  const author = people.find((person) => person.localKey === post.authorKey);
-  return { title: { absolute: formatPostPageTitle(post, author?.name) } };
+  const seoData = await fetchPostSeoData(postKey);
+  if (seoData) {
+    const meta = generatePostMetadata(seoData);
+    return {
+      ...meta,
+      title: { absolute: String(meta.title) },
+    };
+  }
+
+  return {
+    title: "Postingan",
+    description: "Detail laporan dan diskusi publik warga di Kavi.",
+  };
 }
 
-async function Detail({ params }: { params: Promise<{ postKey: string }> }) {
-  const keys = await params;
-  return <PostDetail postKey={keys.postKey} />;
-}
-
-export default function Page({
+export default async function Page({
   params,
 }: {
   params: Promise<{ postKey: string }>;
 }) {
+  const keys = await params;
+  const seoData = await fetchPostSeoData(keys.postKey);
+  const schemas = seoData
+    ? [
+        generatePostJsonLd(seoData),
+        generateBreadcrumbJsonLd([
+          { name: "Beranda", path: "/home" },
+          ...(seoData.topic
+            ? [
+                {
+                  name: seoData.topic.name,
+                  path: `/explore/topics/${seoData.topic.slug}`,
+                },
+              ]
+            : []),
+          { name: seoData.title, path: `/posts/${seoData.id}` },
+        ]),
+      ]
+    : null;
+
   return (
-    <Suspense fallback={<PageSkeleton variant="detail" />}>
-      <Detail params={params} />
-    </Suspense>
+    <>
+      {schemas && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(schemas) }}
+        />
+      )}
+      <PostDetail postKey={keys.postKey} />
+    </>
   );
 }

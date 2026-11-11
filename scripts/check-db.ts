@@ -1,104 +1,80 @@
 import "dotenv/config";
-import {
-  db,
-  users,
-  posts,
-  comments,
-  topics,
-  tags,
-  votes,
-  notifications,
-  reports,
-  postAgencies,
-  conversations,
-  conversationParticipants,
-  messages,
-  userPreferences,
-  drafts,
-  agencyVerificationRequests,
-} from "../db";
-import { sql, isNull } from "drizzle-orm";
+import { client, db, posts } from "../db";
+import { sql } from "drizzle-orm";
 
 async function checkDatabase() {
   console.log("=== KAVI DATABASE HEALTH CHECK ===");
   try {
     const startTime = Date.now();
-    await db.run(sql`SELECT 1`);
+    const summaryRes = await client.execute(`
+      SELECT
+        (SELECT count(*) FROM users) AS users_count,
+        (SELECT count(*) FROM users WHERE is_demo = 1) AS demo_users_count,
+        (SELECT count(*) FROM users WHERE post_count > 0) AS active_posters_count,
+        (SELECT count(*) FROM posts WHERE parent_post_id IS NULL) AS root_posts_count,
+        (SELECT count(*) FROM posts) AS all_posts_count,
+        (SELECT count(*) FROM comments) AS comments_count,
+        (SELECT count(*) FROM topics) AS topics_count,
+        (SELECT count(*) FROM tags) AS tags_count,
+        (SELECT count(*) FROM post_agencies) AS post_agencies_count,
+        (SELECT count(*) FROM votes) AS votes_count,
+        (SELECT count(*) FROM notifications) AS notifs_count,
+        (SELECT count(*) FROM reports) AS reports_count,
+        (SELECT count(*) FROM conversations) AS convs_count,
+        (SELECT count(*) FROM conversation_participants) AS conv_parts_count,
+        (SELECT count(*) FROM messages) AS messages_count,
+        (SELECT count(*) FROM user_preferences) AS prefs_count,
+        (SELECT count(*) FROM drafts) AS drafts_count,
+        (SELECT count(*) FROM agency_verification_requests) AS verif_count
+    `);
     const latency = Date.now() - startTime;
     console.log(`✓ Turso Connection: OK (${latency}ms)`);
 
-    const [
-      usersCount,
-      demoUsersCount,
-      rootPostsCount,
-      allPostsCount,
-      commentsCount,
-      topicsCount,
-      tagsCount,
-      postAgenciesCount,
-      votesCount,
-      notifsCount,
-      reportsCount,
-      convsCount,
-      convPartsCount,
-      messagesCount,
-      prefsCount,
-      draftsCount,
-      verifCount,
-      kindBreakdown,
-      reportStatusBreakdown,
-    ] = await Promise.all([
-      db.select({ count: sql<number>`count(*)` }).from(users),
-      db.select({ count: sql<number>`count(*)` }).from(users).where(sql`${users.isDemo} = 1`),
-      db.select({ count: sql<number>`count(*)` }).from(posts).where(isNull(posts.parentPostId)),
-      db.select({ count: sql<number>`count(*)` }).from(posts),
-      db.select({ count: sql<number>`count(*)` }).from(comments),
-      db.select({ count: sql<number>`count(*)` }).from(topics),
-      db.select({ count: sql<number>`count(*)` }).from(tags),
-      db.select({ count: sql<number>`count(*)` }).from(postAgencies),
-      db.select({ count: sql<number>`count(*)` }).from(votes),
-      db.select({ count: sql<number>`count(*)` }).from(notifications),
-      db.select({ count: sql<number>`count(*)` }).from(reports),
-      db.select({ count: sql<number>`count(*)` }).from(conversations),
-      db.select({ count: sql<number>`count(*)` }).from(conversationParticipants),
-      db.select({ count: sql<number>`count(*)` }).from(messages),
-      db.select({ count: sql<number>`count(*)` }).from(userPreferences),
-      db.select({ count: sql<number>`count(*)` }).from(drafts),
-      db.select({ count: sql<number>`count(*)` }).from(agencyVerificationRequests),
-      db
-        .select({
-          kind: posts.kind,
-          count: sql<number>`count(*)`,
-        })
-        .from(posts)
-        .groupBy(posts.kind),
-      db
-        .select({
-          reportStatus: posts.reportStatus,
-          count: sql<number>`count(*)`,
-        })
-        .from(posts)
-        .where(sql`${posts.kind} = 'report'`)
-        .groupBy(posts.reportStatus),
-    ]);
+    const row = (summaryRes.rows[0] || {}) as Record<string, unknown>;
+    const kindBreakdown = await db
+      .select({
+        kind: posts.kind,
+        count: sql<number>`count(*)`,
+      })
+      .from(posts)
+      .groupBy(posts.kind);
+
+    const reportStatusBreakdown = await db
+      .select({
+        reportStatus: posts.reportStatus,
+        count: sql<number>`count(*)`,
+      })
+      .from(posts)
+      .where(sql`${posts.kind} = 'report'`)
+      .groupBy(posts.reportStatus);
+
+    const totalU = Number(row.users_count ?? 0);
+    const activeU = Number(row.active_posters_count ?? 0);
+    const activePct = totalU > 0 ? ((activeU / totalU) * 100).toFixed(1) : "0.0";
 
     console.log("----------------------------------");
-    console.log(`Users (Total)          : ${usersCount[0]?.count ?? 0} (Demo: ${demoUsersCount[0]?.count ?? 0})`);
-    console.log(`Root Posts             : ${rootPostsCount[0]?.count ?? 0} (All Posts+Replies: ${allPostsCount[0]?.count ?? 0})`);
+    console.log(
+      `Users (Total)          : ${totalU} (Demo: ${row.demo_users_count ?? 0}, Active Posters: ${activeU} [${activePct}%])`
+    );
+    console.log(
+      `Root Posts             : ${row.root_posts_count ?? 0} (All Posts+Replies: ${row.all_posts_count ?? 0})`
+    );
     console.log(`Post Kind Breakdown    : ${JSON.stringify(kindBreakdown)}`);
     console.log(`Report Status Breakdown: ${JSON.stringify(reportStatusBreakdown)}`);
-    console.log(`Legacy Comments Table  : ${commentsCount[0]?.count ?? 0}`);
-    console.log(`Macro Topics           : ${topicsCount[0]?.count ?? 0}`);
-    console.log(`Micro Tags             : ${tagsCount[0]?.count ?? 0}`);
-    console.log(`Post Agencies (@Dinas) : ${postAgenciesCount[0]?.count ?? 0}`);
-    console.log(`Votes Cast             : ${votesCount[0]?.count ?? 0}`);
-    console.log(`Notifications          : ${notifsCount[0]?.count ?? 0}`);
-    console.log(`Moderation Reports     : ${reportsCount[0]?.count ?? 0}`);
-    console.log(`Conversations / Parts  : ${convsCount[0]?.count ?? 0} / ${convPartsCount[0]?.count ?? 0}`);
-    console.log(`Direct Messages        : ${messagesCount[0]?.count ?? 0}`);
-    console.log(`User Preferences       : ${prefsCount[0]?.count ?? 0}`);
-    console.log(`Saved Drafts           : ${draftsCount[0]?.count ?? 0}`);
-    console.log(`Verification Requests  : ${verifCount[0]?.count ?? 0}`);
+    console.log(`Legacy Comments Table  : ${row.comments_count ?? 0}`);
+    console.log(`Macro Topics           : ${row.topics_count ?? 0}`);
+    console.log(`Micro Tags             : ${row.tags_count ?? 0}`);
+    console.log(`Post Agencies (@Dinas) : ${row.post_agencies_count ?? 0}`);
+    console.log(`Votes Cast             : ${row.votes_count ?? 0}`);
+    console.log(`Notifications          : ${row.notifs_count ?? 0}`);
+    console.log(`Moderation Reports     : ${row.reports_count ?? 0}`);
+    console.log(
+      `Conversations / Parts  : ${row.convs_count ?? 0} / ${row.conv_parts_count ?? 0}`
+    );
+    console.log(`Direct Messages        : ${row.messages_count ?? 0}`);
+    console.log(`User Preferences       : ${row.prefs_count ?? 0}`);
+    console.log(`Saved Drafts           : ${row.drafts_count ?? 0}`);
+    console.log(`Verification Requests  : ${row.verif_count ?? 0}`);
     console.log("----------------------------------");
     console.log("✓ All tables intact and queryable.");
   } catch (error) {

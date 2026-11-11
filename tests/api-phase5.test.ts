@@ -6,7 +6,7 @@ import assert from "assert";
 async function runPhase5Tests() {
   console.log("=== [TEST SUITE] PHASE 5: USER PROFILE EDIT, GLOBAL SEARCH & ANALYTICS ===");
 
-  const testUserId = "usr_dev_citizen";
+  const testUserId = "alya";
 
   // Test 1: Username Validation Logic (Char & num only, min 4, max 30)
   console.log("-> Test 1: Validating Username Rules (Char & Num Only, Min 4 Chars)...");
@@ -36,6 +36,10 @@ async function runPhase5Tests() {
     columns: { bio: true, username: true },
   });
   assert.strictEqual(updatedProfile?.bio, newBio, "Bio must be updated in database");
+  await db
+    .update(users)
+    .set({ bio: "Suara kecil, perubahan bersama." })
+    .where(eq(users.id, testUserId));
   console.log("   PASS: Profile update verified in Turso");
 
   // Test 3: Global Search Querying Across Posts, Topics & Users

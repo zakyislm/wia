@@ -1,11 +1,30 @@
 import "dotenv/config";
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import {
+  S3Client,
+  PutObjectCommand,
+  DeleteObjectCommand,
+} from "@aws-sdk/client-s3";
 
 const accountId = process.env.R2_ACCOUNT_ID;
 const accessKeyId = process.env.R2_ACCESS_KEY_ID;
 const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY;
-export const bucketName = process.env.R2_BUCKET_NAME || "kavi-evidence";
-export const publicDomain = (process.env.R2_PUBLIC_DOMAIN || "").replace(/\/$/, "");
+export const bucketName = process.env.R2_BUCKET_NAME || "kavi";
+export const publicDomain = (
+  process.env.R2_PUBLIC_DOMAIN || "https://s3.kavi.jeki.me"
+).replace(/\/$/, "");
+
+export type R2Folder = "pfp" | "posts" | "evidence";
+
+export function normalizeR2Folder(raw?: string | null): R2Folder {
+  const val = (raw || "").trim().toLowerCase();
+  if (val === "pfp" || val === "avatar" || val === "avatars" || val === "profile") {
+    return "pfp";
+  }
+  if (val === "evidence" || val === "resolution" || val === "verification") {
+    return "evidence";
+  }
+  return "posts";
+}
 
 export const isR2Configured = Boolean(
   accountId && accessKeyId && secretAccessKey && bucketName && publicDomain
@@ -28,7 +47,7 @@ export interface UploadResult {
 }
 
 /**
- * Upload an image buffer or file to Cloudflare R2
+ * Upload an image/video buffer or file to Cloudflare R2
  */
 export async function uploadToR2(
   buffer: Buffer,
@@ -64,4 +83,31 @@ export async function uploadToR2(
     size: buffer.length,
     contentType,
   };
+}
+
+/**
+ * Delete an object from Cloudflare R2 by key or public URL
+ */
+export async function deleteFromR2(keyOrUrl: string): Promise<boolean> {
+  if (!isR2Configured || !keyOrUrl) return false;
+
+  const key =
+    publicDomain && keyOrUrl.startsWith(publicDomain)
+      ? keyOrUrl.slice(publicDomain.length).replace(/^\/+/, "")
+      : keyOrUrl.replace(/^\/+/, "");
+
+  if (!key) return false;
+
+  try {
+    await r2Client.send(
+      new DeleteObjectCommand({
+        Bucket: bucketName,
+        Key: key,
+      })
+    );
+    return true;
+  } catch (err) {
+    console.warn("deleteFromR2 error:", err);
+    return false;
+  }
 }

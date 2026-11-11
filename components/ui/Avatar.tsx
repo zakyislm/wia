@@ -3,7 +3,13 @@ export function Avatar({ name, src }: { name: string; src?: string }) {
   return (
     <span className="avatar" aria-hidden="true">
       {src ? (
-        <img src={src} alt="" loading="lazy" decoding="async" />
+        <img
+          src={src}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          referrerPolicy="no-referrer"
+        />
       ) : (
         name.charAt(0)
       )}

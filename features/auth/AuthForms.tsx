@@ -1,122 +1,133 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
-import { Eye, EyeOff } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { signIn } from "next-auth/react";
 import { PublicFrame } from "./PublicFrame";
 import { useDemo } from "./DemoProvider";
 import { Button } from "@/components/ui/Button";
-export function Signup() {
-  const { people, register } = useDemo();
-  const router = useRouter();
-  const [name, setName] = useState("");
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [visible, setVisible] = useState(false);
-  const [error, setError] = useState("");
+
+function GoogleIcon() {
   return (
-    <PublicFrame title="Bergabung di KAVI" documentTitle="Daftar">
-      <p className="muted">Mulai percakapan, temukan perubahan.</p>
-      <form
-        className="auth-form"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (!name.trim()) {
-            setError("Nama tampilan wajib diisi.");
-            return;
-          }
-          if (!/^[a-zA-Z0-9_]{3,24}$/.test(username)) {
-            setError("Username memakai 3–24 huruf, angka atau garis bawah.");
-            return;
-          }
-          if (
-            people.some(
-              (person) =>
-                person.username.toLowerCase() === username.toLowerCase(),
-            )
-          ) {
-            setError("Username sudah dipakai pada data contoh.");
-            return;
-          }
-          register(name.trim(), username);
-          setPassword("");
-          router.push("/home");
-        }}
-      >
-        <label>
-          Nama tampilan
-          <input
-            required
-            maxLength={60}
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            autoComplete="off"
-          />
-        </label>
-        <label>
-          Username
-          <input
-            required
-            value={username}
-            maxLength={24}
-            onChange={(e) => setUsername(e.target.value)}
-            autoComplete="off"
-          />
-        </label>
-        <label>
-          Email
-          <input
-            type="email"
-            required
-            placeholder="contoh@example.com"
-            autoComplete="off"
-          />
-        </label>
-        <label>
-          Kata sandi
-          <span className="password-field">
-            <input
-              required
-              minLength={8}
-              type={visible ? "text" : "password"}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="new-password"
-              placeholder="Minimal 8 karakter untuk demo"
-            />
-            <Button
-              variant="ghost"
-              aria-label={
-                visible ? "Sembunyikan kata sandi" : "Tampilkan kata sandi"
-              }
-              onClick={() => setVisible(!visible)}
-            >
-              {visible ? <EyeOff /> : <Eye />}
-            </Button>
-          </span>
-        </label>
-        <p className="small muted">
-          Dengan melanjutkan, baca <Link href="/help#terms">ketentuan</Link> dan{" "}
-          <Link href="/help#privacy">privasi</Link>. Semua akun baru memakai
-          peran warga; verifikasi instansi terpisah.
-        </p>
-        {error && (
-          <p role="alert" className="error">
-            {error}
-          </p>
-        )}
-        <Button type="submit">Daftar akun demo</Button>
-      </form>
-      <p className="demo-note">
-        Gunakan data contoh. Email dan kata sandi tidak dikirim atau disimpan.
-        Sesi hilang saat refresh.
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path
+        fill="#4285F4"
+        d="M23.49 12.27c0-.79-.07-1.54-.19-2.27H12v4.51h6.47c-.29 1.48-1.14 2.73-2.4 3.58v3h3.86c2.26-2.09 3.56-5.17 3.56-8.82Z"
+      />
+      <path
+        fill="#34A853"
+        d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.86-3c-1.08.72-2.45 1.16-4.07 1.16-3.13 0-5.78-2.11-6.73-4.96H1.29v3.09C3.26 21.3 7.31 24 12 24Z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M5.27 14.29c-.25-.72-.38-1.49-.38-2.29s.14-1.57.38-2.29V6.62H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.38l3.98-3.09Z"
+      />
+      <path
+        fill="#EA4335"
+        d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.62l3.98 3.09c.95-2.85 3.6-4.96 6.73-4.96Z"
+      />
+    </svg>
+  );
+}
+
+export function Signup() {
+  const { user, isHydrating } = useDemo();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!isHydrating && user) {
+      router.replace("/home");
+    }
+  }, [isHydrating, user, router]);
+
+  return (
+    <PublicFrame title="Bergabung di Kavi" documentTitle="Daftar">
+      <p className="auth-subtitle">
+        Mulai percakapan warga dan pantau perubahan nyata melalui akun Google
+        Anda.
       </p>
+
+      <div className="auth-form">
+        <fieldset className="auth-disabled-fieldset" disabled aria-disabled="true">
+          <label className="auth-field-group">
+            <span className="sr-only">Nama tampilan</span>
+            <input
+              type="text"
+              disabled
+              placeholder="Nama tampilan"
+              className="auth-input auth-input--disabled"
+            />
+          </label>
+          <label className="auth-field-group">
+            <span className="sr-only">Username</span>
+            <input
+              type="text"
+              disabled
+              placeholder="Username (@warga)"
+              className="auth-input auth-input--disabled"
+            />
+          </label>
+          <label className="auth-field-group">
+            <span className="sr-only">Email</span>
+            <input
+              type="email"
+              disabled
+              placeholder="Alamat email"
+              className="auth-input auth-input--disabled"
+            />
+          </label>
+          <label className="auth-field-group">
+            <span className="sr-only">Kata sandi</span>
+            <div className="auth-passcode-preview">
+              <input
+                type="password"
+                disabled
+                placeholder="Kata sandi"
+                className="auth-input auth-input--disabled"
+              />
+              <span className="auth-passcode-tag">Nonaktif</span>
+            </div>
+          </label>
+        </fieldset>
+
+        <p className="small muted auth-terms-note">
+          Pendaftaran menggunakan autentikasi satu pintu Google. Dengan
+          melanjutkan, Anda menyetujui{" "}
+          <Link href="/help#terms">ketentuan</Link> &{" "}
+          <Link href="/help#privacy">kebijakan privasi</Link>.
+        </p>
+
+        <button
+          type="button"
+          className="button button--primary auth-submit-btn auth-google-signup-btn"
+          onClick={() => {
+            void fetch("/api/auth/login", { method: "DELETE" })
+              .catch(() => {})
+              .finally(() => {
+                void signIn("google", { callbackUrl: "/home" });
+              });
+          }}
+        >
+          <span className="auth-google-badge" aria-hidden="true">
+            <GoogleIcon />
+          </span>
+          <span>Daftar dengan Google</span>
+        </button>
+      </div>
+
       <p className="auth-switch">
         Sudah punya akun? <Link href="/login">Masuk</Link>
       </p>
     </PublicFrame>
   );
 }
+
 export function Recovery() {
   const [step, setStep] = useState<
     "email" | "sent" | "new" | "expired" | "done"
@@ -126,18 +137,20 @@ export function Recovery() {
   const [error, setError] = useState("");
   return (
     <PublicFrame
-      documentTitle="Lupa Kata Sandi"
+      documentTitle="Kendala Akses"
       title={
         step === "expired"
           ? "Tautan kedaluwarsa"
           : step === "done"
-            ? "Pratinjau selesai"
-            : "Pulihkan akses"
+            ? "Kata sandi diperbarui"
+            : "Pulihkan Akses"
       }
     >
       {step === "email" ? (
         <>
-          <p className="muted">Masukkan email untuk melihat alur pemulihan.</p>
+          <p className="auth-subtitle">
+            Masukkan email terdaftar untuk menerima tautan pemulihan akses akun.
+          </p>
           <form
             className="auth-form"
             onSubmit={(e) => {
@@ -145,36 +158,32 @@ export function Recovery() {
               setStep("sent");
             }}
           >
-            <label>
-              Email
+            <label className="auth-field-group">
+              <span className="sr-only">Email</span>
               <input
                 type="email"
                 required
                 autoComplete="off"
-                placeholder="contoh@example.com"
+                placeholder="Masukkan email terdaftar"
+                className="auth-input"
               />
             </label>
-            <Button type="submit">Lanjutkan</Button>
+            <Button type="submit" className="auth-submit-btn">
+              Kirim tautan pemulihan
+            </Button>
           </form>
         </>
       ) : step === "sent" ? (
         <div className="stack">
-          <p>
-            Jika email terdaftar, layanan aktif akan menyediakan instruksi
-            pemulihan.
+          <p className="auth-subtitle">
+            Jika email terdaftar, instruksi pemulihan kata sandi telah
+            dikirimkan ke kotak masuk Anda.
           </p>
-          <p className="demo-note">
-            Ini pratinjau UI. Tidak ada email yang dikirim dan tidak ada
-            pemeriksaan akun.
-          </p>
-          <Button onClick={() => setStep("new")}>
-            Pratinjau kata sandi baru
+          <Button className="auth-submit-btn" onClick={() => setStep("new")}>
+            Atur kata sandi baru
           </Button>
           <Button variant="secondary" onClick={() => setStep("email")}>
             Kirim ulang
-          </Button>
-          <Button variant="ghost" onClick={() => setStep("expired")}>
-            Lihat kondisi tautan kedaluwarsa
           </Button>
         </div>
       ) : step === "new" ? (
@@ -192,7 +201,7 @@ export function Recovery() {
             setStep("done");
           }}
         >
-          <label>
+          <label className="auth-field-group">
             Kata sandi baru
             <input
               type="password"
@@ -201,9 +210,10 @@ export function Recovery() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="new-password"
+              className="auth-input"
             />
           </label>
-          <label>
+          <label className="auth-field-group">
             Ulangi kata sandi
             <input
               type="password"
@@ -212,6 +222,7 @@ export function Recovery() {
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
               autoComplete="new-password"
+              className="auth-input"
             />
           </label>
           {error && (
@@ -219,25 +230,28 @@ export function Recovery() {
               {error}
             </p>
           )}
-          <Button type="submit">Simpan pada simulasi</Button>
+          <Button type="submit" className="auth-submit-btn">
+            Simpan kata sandi
+          </Button>
         </form>
       ) : step === "expired" ? (
         <div className="stack">
-          <p>
+          <p className="auth-subtitle">
             Tautan ini tidak dapat digunakan lagi. Minta instruksi pemulihan
             baru.
           </p>
-          <Button onClick={() => setStep("email")}>Minta tautan baru</Button>
+          <Button className="auth-submit-btn" onClick={() => setStep("email")}>
+            Minta tautan baru
+          </Button>
         </div>
       ) : (
         <p className="notice" role="status">
-          Alur demo selesai. Kata sandi akun sebenarnya tidak diubah.
+          Kata sandi berhasil diperbarui. Silakan masuk kembali.
         </p>
       )}
       <p className="auth-switch">
-        <Link href="/login">Kembali ke Masuk</Link>
+        <Link href="/login">Kembali ke halaman Masuk</Link>
       </p>
-      <p className="demo-note">Gunakan data contoh, bukan kata sandi asli.</p>
     </PublicFrame>
   );
 }
