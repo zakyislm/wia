@@ -1,116 +1,189 @@
-# Kavi - Suarakan Isu Publik Warga Indonesia
+# Kavi — Ruang Suara & Laporan Warga
 
-> "Your pain is our pain. #VoicePublicIssues"
-
-## Apa Itu Kavi?
-
-Kavi adalah platform pelaporan masalah publik dan aspirasi warga di Indonesia yang dirancang agar isu-isu di sekitar lingkungan maupun daerah tidak lagi tenggelam begitu saja. Melalui Kavi, masyarakat dapat melaporkan permasalahan nyata di wilayahnya, menggalang dukungan dari warga sekitar, hingga memantau penyelesaian resmi dari instansi pemerintah daerah terkait.
-
-Di media sosial umum, keluhan warga sering kali kalah oleh konten hiburan atau hanya ramai sesaat tanpa kejelasan tindak lanjut. Kavi hadir sebagai ruang khusus yang mengubah keluhan warga yang tersebar menjadi jaringan laporan publik yang terstruktur, terikat lokasi wilayah, dan memiliki status penyelesaian yang jelas.
+> **Live URL:** [https://app.kavi.jeki.me](https://app.kavi.jeki.me)  
+> *Platform civic technology terbuka yang menjembatani warga dengan instansi pemerintah di 38 provinsi Indonesia untuk melaporkan permasalahan infrastruktur dan layanan publik secara transparan, berbasis bukti visual, serta termonitor hingga tuntas.*
 
 ---
 
-## Apa Saja yang Dilakukan Kavi?
+## 1. Tech Stack
 
-Kavi menghubungkan warga pelapor, komunitas masyarakat sekitar, dan instansi pemerintah daerah melalui empat tahapan utama:
-
-1. **Pelaporan Berbasis Wilayah dan Topik (`Report an Issue`)**
-   Warga membuat laporan publik lengkap dengan judul permasalahan, kronologi kejadian, lampiran bukti visual, penanda lokasi provinsi (misalnya Kalimantan Utara, Jawa Barat, Sumatera Barat), serta label topik spesifik (seperti `KebakaranHutan`, `Karhutla`, atau `ToneDeaf`).
-
-2. **Validasi Komunitas dan Pengelompokan Jaringan (`Clustered Civic Network`)**
-   Warga lain yang merasakan dampak serupa dapat memberikan dukungan suara (upvote), menambahkan bukti di kolom komentar, atau menyebarkan ulang laporan. Laporan dari berbagai titik di wilayah yang sama otomatis terhubung membentuk peta jaringan isu daerah sehingga skala masalah terlihat jelas.
-
-3. **Tindak Lanjut Instansi Resmi (`Verified Responder`)**
-   Kavi membedakan akun warga biasa dengan akun terverifikasi melalui sistem lencana resmi:
-   - **Lencana Hijau Pemerintah (`Government Verified`)**: Digunakan oleh pemerintah daerah atau instansi publik resmi untuk merespons dan menindaklanjuti laporan warga.
-   - **Lencana Merah Internal (`Internal Team Verified`)**: Digunakan oleh tim pengembang dan moderator Kavi untuk verifikasi teknis serta moderasi platform.
-
-4. **Penutupan Laporan Secara Transparan (`Solved Thread Resolution`)**
-   Ketika sebuah permasalahan telah diselesaikan di lapangan, utas laporan tidak dihapus, melainkan ditandai sebagai **Solved** (Selesai). Kolom komentar ditutup dengan pemberitahuan resmi (`ClosedThread`) yang mencantumkan identitas pejabat atau instansi yang menyelesaikan laporan tersebut sebagai rekam jejak akuntabilitas publik.
+| Layer | Teknologi | Peran |
+| :--- | :--- | :--- |
+| **Framework** | **Next.js 15 (App Router)** & **React 19** | SSR, Client Components, Server Actions, Route Handlers |
+| **Language** | **TypeScript 5** | Strict type-safety di skema DB, API contracts, dan komponen antarmuka |
+| **Styling** | **Pure CSS (`app/globals.css`)** | Custom design system tanpa dependensi UI bloat, fluid typography (*Plus Jakarta Sans*) |
+| **Database** | **Turso (libSQL Cloud SQLite)** | Distributed edge database untuk persistensi relasional laporan, topik, dan komentar |
+| **ORM** | **Drizzle ORM** | Schema definition, automated migrations, type-safe queries & relational joins |
+| **Authentication** | **NextAuth.js v5 (Auth.js)** | Google OAuth 2.0 provider, session management, dan isolated demo identity fallback |
+| **Object Storage** | **Cloudflare R2 (S3-compatible)** | Penyimpanan bukti visual laporan via presigned URLs & CDN `s3.kavi.jeki.me` |
+| **Cache / Write-Behind** | **Upstash Redis (REST API)** | Write-behind buffer hitungan interaksi (*upvotes/views*) & rate-limiting cooldown |
+| **Icons & Media** | **Lucide React** | Ikon antarmuka modular |
+| **Testing & SEO** | **tsx + Node assert** | Test suite otomatis untuk dynamic SEO, Schema.org JSON-LD, sitemap, dan `llms.txt` |
 
 ---
 
-## Manfaat Kavi
+## 2. Cara Menjalankan Project
 
-### 1. Bagi Warga dan Masyarakat
-- **Laporan Tidak Mudah Tenggelam**: Setiap laporan dikelompokkan berdasarkan lokasi provinsi dan topik masalah, bukan sekadar mengikuti tren hiburan harian.
-- **Kekuatan Kolektif Warga Sekitar**: Warga yang awalnya merasa sendirian saat menghadapi masalah lingkungan dapat melihat titik-titik laporan warga lain di sekitarnya dan saling menguatkan bukti.
-- **Kepastian Status Penyelesaian**: Warga dapat membedakan mana laporan yang masih menunggu tindak lanjut dan mana laporan yang sudah benar-benar diselesaikan (`Solved`).
+### Prasyarat
+- **Node.js** >= 18.18.0
+- **pnpm** >= 9.x
+- Kredensial aktif: Turso DB, Cloudflare R2, Google Cloud Console (OAuth), dan Upstash Redis.
 
-### 2. Bagi Pemerintah Daerah dan Instansi Publik
-- **Pemetaan Masalah Lapangan Secara Langsung**: Instansi daerah dapat langsung melihat isu prioritas di wilayah kerjanya berdasarkan jumlah dukungan warga dan sebaran laporan.
-- **Komunikasi Resmi Tanpa Disinformasi**: Dengan lencana verifikasi hijau dan fitur penutupan utas resmi, tanggapan pemerintah daerah tercatat jelas dan tidak tertumpuk di antara ribuan komentar.
-- **Rekam Jejak Kinerja Publik**: Setiap laporan yang berhasil diselesaikan menjadi bukti nyata ketanggapan instansi di mata masyarakat.
+### Langkah-langkah
+```bash
+# 1. Clone repository
+git clone https://github.com/username/wia.git
+cd wia
 
----
+# 2. Pasang dependensi
+pnpm install
 
-## Perbandingan Kavi dengan Threads, X (Twitter), dan Substack
+# 3. Konfigurasi file environment
+cp .env.example .env.local
+# Lengkapi variabel wajib pada .env.local:
+# - TURSO_DATABASE_URL & TURSO_AUTH_TOKEN
+# - NEXTAUTH_SECRET & NEXTAUTH_URL
+# - AUTH_GOOGLE_ID & AUTH_GOOGLE_SECRET
+# - R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME, R2_PUBLIC_DOMAIN
+# - UPSTASH_REDIS_REST_URL & UPSTASH_REDIS_REST_TOKEN
 
-Meskipun masyarakat saat ini sering menyampaikan keluhan di **Threads**, **X (Twitter)**, atau menulis opini panjang di **Substack**, ketiga platform tersebut tidak dirancang khusus untuk menyelesaikan masalah publik di tingkat daerah.
+# 4. Sinkronisasi skema database ke Turso
+pnpm db:push
 
-| Aspek Perbandingan | Kavi | X (Twitter) | Threads | Substack |
-| :--- | :--- | :--- | :--- | :--- |
-| **Fokus Utama** | Pelaporan isu publik warga dan akuntabilitas penyelesaian daerah | Percakapan cepat, berita kilat, dan tren global | Diskusi sosial santai dan konten gaya hidup | Buletin tulisan panjang, esai, dan jurnalisme independen |
-| **Struktur Lokasi Daerah** | Terikat langsung pada wilayah provinsi dan pemetaan jaringan lokal | Hanya berbasis tagar atau teks bebas yang mudah tercecer | Tidak memiliki pengelompokan isu berdasarkan wilayah | Berfokus pada pelanggan buletin penulis, bukan wilayah geografis |
-| **Nasib Keluhan Warga** | Tersimpan sebagai tiket publik terbuka hingga berstatus **Solved** | Cepat viral jika beruntung, namun tenggelam dalam hitungan jam | Tertutup oleh algoritma konten hiburan dan percakapan umum | Hanya dibaca oleh pelanggan surel penulis tertentu |
-| **Status Penyelesaian** | Memiliki status resmi **Solved** dan penutupan utas (`ClosedThread`) | Tidak ada penanda apakah masalah sudah selesai atau belum | Tidak ada mekanisme status penyelesaian masalah | Tidak dirancang untuk pelacakan status tindak lanjut |
-| **Verifikasi Instansi** | Lencana Hijau khusus Pemerintah Daerah & Lencana Merah Tim Internal | Centang berbayar umum yang tidak membedakan fungsi penanganan laporan | Mengikuti lencana akun populer Instagram | Tidak memiliki sistem verifikasi instansi publik |
-| **Sistem Dukungan Bukti** | Upvote, downvote, repost, komentar berjenjang, dan label topik berwarna | Suka (like), kutipan, dan balasan bebas tanpa struktur penyelesaian | Suka dan balasan percakapan biasa | Komentar pembaca pada artikel penulis |
+# 5. Jalankan seed data awal (opsional)
+pnpm db:seed
 
-### Mengapa Kavi Berbeda?
-
-1. **Dibandingkan X (Twitter)**
-   Di X (Twitter), sebuah laporan warga harus "viral" terlebih dahulu agar dilirik instansi. Jika pengikut pelapor sedikit, keluhan tersebut hilang dalam hitungan menit. Selain itu, ketika masalah sudah ditangani, publik sering tidak tahu apakah kasusnya benar-benar tuntas. Di Kavi, setiap laporan memiliki siklus hidup yang jelas dari terbuka hingga **Solved**.
-
-2. **Dibandingkan Threads**
-   Threads berorientasi pada algoritma percakapan sosial dan hiburan ringan. Isu serius seperti kebakaran hutan (`Karhutla`), kerusakan fasilitas umum, atau pejabat yang kurang peka (`ToneDeaf`) bercampur aduk dengan konten sehari-hari tanpa pemetaan wilayah. Kavi memisahkan ruang pelaporan warga agar tetap fokus pada dampak sosial dan solusi nyata.
-
-3. **Dibandingkan Substack**
-   Substack sangat baik untuk esai mendalam atau buletin berkala dari satu penulis ke pembacanya, tetapi bersifat satu arah dan tidak ramah untuk pelaporan cepat warga di lapangan. Kavi dirancang agar warga biasa dapat mengirim laporan singkat beserta bukti foto dalam hitungan detik dan langsung terhubung dengan warga satu daerah.
+# 6. Jalankan server development
+pnpm dev
+```
+Akses aplikasi melalui peramban pada alamat `http://localhost:3000`.
 
 ---
 
-## Struktur Direktori Proyek
+## 3. Struktur Routing Halaman (Pages)
+
+Sistem halaman terpisah antara area publik (autentikasi/bantuan) dan ruang kerja utama (*workspace/feed*):
 
 ```text
 app/
-├── about/
-│   └── page.tsx                  # Halaman profil Kavi & perkenalan tim (/about)
-├── components/
-│   ├── small/                    # Komponen dasar (Button, Avatar, FormalPhoto, Badge, TagPill)
-│   ├── medium/                   # Komponen menengah (AuthorMetadata, ActionsButton, InputComment, ClosedThread, CommentItem)
-│   ├── large/                    # Komponen tampilan laporan (CardView, PostCreateModal, PostPageView, SolvedPostPageView)
-│   ├── land/                     # Komponen halaman utama & profil (Navbar, Hero, NetworkSection, CtaSection, AboutContent, Footer)
-│   └── index.ts                  # Ekspor terpusat seluruh komponen
-├── config/
-│   ├── theme.ts                  # Token desain terpusat (warna, tipografi, jarak, radius, ukuran)
-│   ├── tagColors.ts              # Pemetaan warna label topik deterministik
-│   └── index.ts                  # Ekspor konfigurasi
-├── globals.css                   # Pengaturan gaya dasar halaman
-├── layout.tsx                    # Tata letak akar & pemuatan huruf Dm Sans serta Joti One
-└── page.tsx                      # Halaman utama Coming Soon Kavi (/)
+├── (auth)
+│   ├── login/page.tsx               # Dedicated login page (Google OAuth + account selector)
+│   └── signup/page.tsx              # Dedicated signup page (Google OAuth only)
+├── (main)
+│   ├── page.tsx                     # Root redirect logic (ke /login atau /home)
+│   ├── home/page.tsx                # Linimasa utama (Tab: Untuk Anda, Mengikuti, Arsip)
+│   ├── explore/
+│   │   ├── page.tsx                 # Eksplorasi topik sorotan, trending, dan pencarian multi-entitas
+│   │   └── topics/[slug]/page.tsx   # Feed terfokus per-topik (Tab: Semua, Ramai, Terbaru)
+│   ├── laporan/page.tsx             # Direktori khusus laporan warga (Filter: Menunggu, Diproses, Selesai)
+│   ├── posts/
+│   │   ├── [postKey]/page.tsx       # Detail laporan utuh, linimasa bukti visual, & nested threads
+│   │   └── [postKey]/branch/[branchKey]/page.tsx # Percabangan sub-thread diskusi mendalam
+│   ├── profile/[username]/page.tsx  # Profil warga / instansi pemerintah publik
+│   ├── messages/page.tsx            # Pesan langsung (Direct Messages) warga & instansi
+│   ├── notifications/page.tsx       # Pusat notifikasi dengan kontrol segmentasi & seleksi masal
+│   ├── settings/page.tsx            # Pengaturan akun, preferensi notifikasi, dan tema
+│   └── help/page.tsx                # Pusat bantuan, kebijakan privasi, & pedoman komunitas
+├── (crawlers & seo)
+│   ├── robots.ts                    # Automated robots.txt generator
+│   ├── sitemap.ts                   # Dynamic sitemap.xml generator (500+ entitas DB)
+│   └── llms.txt/route.ts            # AI web crawler endpoint (Markdown standar untuk LLM)
 ```
 
 ---
 
-## Tim Pengembang Kavi
+## 4. Struktur Direktori Proyek
 
-- **Zaky** - Head Developer
-- **Farika Auliya** - Multimedia Designer
-- **Adrian Bagas** - Growth Executive
+```text
+wia/
+├── app/                             # Next.js App Router (Layouts, Pages, Route Handlers)
+│   ├── api/                         # Endpoint backend REST API internal
+│   │   ├── auth/                    # NextAuth route handler ([...nextauth])
+│   │   ├── bootstrap/               # Inisialisasi hidrasi state utuh dari Turso DB
+│   │   ├── cron/sync-counters/      # Sinkronisasi buffer Redis ke Turso (Vercel Daily Cron)
+│   │   ├── posts/                   # CRUD postingan, voting, komentar, resolusi
+│   │   ├── upload/                  # Presigned URL generator Cloudflare R2
+│   │   └── search/                  # Fuzzy multi-entity search endpoint
+│   ├── globals.css                  # CSS global tunggal & CSS variable design tokens
+│   └── layout.tsx                   # Root layout, dynamic metadata generator, Schema.org WebSite JSON-LD
+├── components/                      # Reusable UI Atoms & Organisms
+│   ├── layout/
+│   │   └── ProductShell.tsx         # Persistent shell (sidebar, navigation, support column)
+│   ├── news/
+│   │   └── HighlightSection.tsx     # Komponen Sorotan dinamis dari tabel DB topics
+│   ├── search/
+│   │   └── QuickSearchModal.tsx     # Modal pencarian instan (Ctrl+K)
+│   └── ui/                          # Atoms: Avatar, Skeleton, VerifiedBadge, SelectMenu, LazyFeed
+├── db/                              # Konfigurasi Basis Data
+│   ├── index.ts                     # Inisialisasi client Drizzle & libSQL Turso
+│   └── schema.ts                    # Drizzle Schema (users, posts, topics, tags, votes, dll)
+├── features/                        # Domain-Driven Feature Modules
+│   ├── auth/                        # PublicFrame, Login, AuthForms, DemoProvider
+│   ├── feed/                        # Linimasa utama & composer postingan
+│   ├── posts/                       # PostDetail, PostCard, PostMenu, ResolutionPanel
+│   ├── reports/                     # ReportsView (direktori laporan warga)
+│   ├── explore/                     # ExploreView, ExploreChrome (horizontal pills slider)
+│   ├── profile/                     # Profile header, tab postingan/laporan, edit dialog
+│   └── workspace/                   # In-memory session state & seeding defaults
+├── lib/                             # Utilities & Shared Services
+│   ├── auth-helper.ts               # Session verification & user role resolver
+│   ├── seo.ts                       # Dynamic Metadata & Schema.org JSON-LD builders
+│   ├── navigationGuard.ts           # Cooldown rate-limit navigasi halaman
+│   └── title.ts                     # Formatter judul dokumen & tab browser
+├── scripts/                         # Skrip otomasi & pemeliharaan database
+│   ├── seed-dummy.ts                # Seeder realistis 54 user & 50 laporan awal
+│   └── sync-db.ts                   # Sinkronisasi relasi skema
+├── tests/                           # Unit & Integration Tests
+│   └── seo-llms.test.ts             # Pengujian otomatis spesifikasi SEO & /llms.txt
+└── vercel.json                      # Konfigurasi Vercel Deployment & Daily Cron
+```
 
 ---
 
-## Cara Menjalankan Proyek Secara Lokal
+## 5. Cakupan Scope & Fitur Tingkat Lanjut (*High-Complexity Features*)
 
-1. Pasang seluruh dependensi menggunakan `pnpm`:
-   ```bash
-   pnpm install
-   ```
+```mermaid
+flowchart TD
+    User["Warga / Instansi"] --> Shell["Persistent Shell (Zero-Flicker Layout)"]
+    Shell --> Feed["Linimasa & Composer"]
+    Feed -->|Post Laporan| R2["Cloudflare R2 Direct Upload"]
+    Feed -->|Diskusi / Reaksi| Redis["Upstash Redis Write-Behind Buffer"]
+    Redis -->|Daily Cron Sync| Turso[("Turso DB (libSQL SQLite)")]
+    Turso --> SEO["Dynamic SEO + Schema.org JSON-LD"]
+    Turso --> LLMs["/llms.txt (AI Web Crawlers)"]
+    Turso --> Resolution["72h Democratic Validation Loop"]
+```
 
-2. Jalankan peladen pengembangan lokal:
-   ```bash
-   pnpm dev
-   ```
+### 1. Struktur Diskusi Bertingkat & Percabangan Rekursif (*Recursive Discussion Trees*)
+- **Skema Self-Referencing**: Menggunakan kolom `parentPostId` dan `rootPostId` pada tabel tunggal `posts`, memungkinkan hierarki balasan tak terbatas ala Threads & Reddit.
+- **Deep-Linking Percabangan**: Navigasi khusus `/posts/[postKey]/branch/[branchKey]` yang mengisolasi percabangan sub-diskusi tertentu dengan panduan garis vertikal visual tanpa memutus konteks induk.
+- **Optimistic Tree Updates**: Balasan baru langsung ter-render di UI secara instan sebelum respons server selesai.
 
-3. Buka peramban pada alamat `http://localhost:3000` untuk halaman utama dan `http://localhost:3000/about` untuk halaman profil Kavi.
+### 2. Validasi Demokratis 72 Jam & Resolusi Resmi Instansi
+- **Tindak Lanjut Terverifikasi**: Hanya akun dengan peran `GOVERNMENT` atau `INTERNAL` yang dapat menerbitkan tanggapan berkategori `isActionTaken = true`.
+- **Konsensus Komunitas 72 Jam**: Laporan yang ditindaklanjuti membuka masa voting validasi warga selama 72 jam.
+- **Ambang Batas Penutupan Otomatis**: Sistem otomatis memvalidasi apakah penyelesaian mencapai konsensus minimal 83% persetujuan untuk status `SOLVED`, atau dikembalikan ke antrean perbaikan jika belum memenuhi syarat.
+
+### 3. Arsitektur Hybrid Cache & Write-Behind Counter Buffer
+- **Reduksi Beban Database**: Aksi frekuensi tinggi seperti *upvote*, *downvote*, dan *view count* dialirkan melalui buffer Upstash Redis via REST API, mencegah *lock contention* pada Turso libSQL edge database.
+- **Daily Cron Sync**: Sinkronisasi agregasi berkala dari Redis ke tabel utama Turso via `vercel.json` (`/api/cron/sync-counters`).
+
+### 4. Persistent App Shell (Arsitektur Anti Flashing)
+- **Komponen Chrome Tunggal**: Navigasi sidebar kiri dan panel sorotan kanan dimount satu kali di `RootLayout` via `PersistentProductChrome`.
+- **Center-Only Reading Column Update**: Pergantian rute URL (`/home` ↔ `/explore` ↔ `/posts/[id]`) hanya merefresh kolom tengah (`main.reading-column`), mengeliminasi layout redraw atau flickering.
+
+### 5. Otomasi SEO Dinamis & Standar AI Crawler (`/llms.txt`)
+- **Schema.org Rich Snippets**: Inject otomatis `<script type="application/ld+json">` untuk `DiscussionForumPosting`, `GovernmentOrganization`, `acceptedAnswer`, `BreadcrumbList`, dan `WebSite`.
+- **Dynamic DB-Driven Keywords**: Kata kunci metadata diekstraksi langsung dari nama topik, provinsi, kabupaten/kota, tag, dan nama instansi di Turso DB.
+- **Mesin `/llms.txt` Terstandarisasi**: Endpoint publik Markdown bagi agen LLM dan crawler AI (seperti GPTBot, ClaudeBot, PerplexityBot) yang mendokumentasikan API endpoints publik, topik makro, dan statistik resolusi live.
+
+### 6. Pelaporan Anonim Aman (*Dual-Mode Identity*)
+- Mode whistleblowing warga (`isAnonymous = true`) menyembunyikan identitas, username, dan foto profil pada kartu publik, feed, dan indeks pencarian, sementara kepemilikan laporan tetap dapat dikelola secara privat oleh pembuatnya.
+
+---
+
+## 6. Tim Pengembang Kavi
+
+- **Zaky** — Head Developer
+- **Farika Auliya** — Multimedia Designer
+- **Adrian Bagas** — Growth Executive
