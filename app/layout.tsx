@@ -13,7 +13,7 @@ const plusJakartaSans = Plus_Jakarta_Sans({
   variable: "--font-plus-jakarta-sans",
 });
 
-const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://kavi.jeki.me";
+const appBaseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://app.kavi.jeki.me";
 
 async function getDynamicRootKeywords(): Promise<string[]> {
   try {
