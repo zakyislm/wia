@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/LazyFeed";
 import { SkeletonActivityList } from "@/components/ui/Skeleton";
 import { useDemo } from "@/features/auth/DemoProvider";
+import { formatPageTitle, formatSearchTitle } from "@/lib/title";
 
 type ActivityKind = "vote" | "comment" | "repost" | "saved" | "validation";
 type ActivityFilter = "all" | ActivityKind;
@@ -86,7 +87,7 @@ function ActivityIcon({ item }: { item: ActivityEntry }) {
 }
 
 export function Activity() {
-  const { posts, user } = useDemo();
+  const { posts, user, showToast } = useDemo();
   const [query, setQuery] = useState("");
   const [kindFilter, setKindFilter] = useState<ActivityFilter>("all");
   const [activeTab, setActiveTab] = useState<ActivityTab>("all");
@@ -195,16 +196,21 @@ export function Activity() {
     resetKey: `${query}:${kindFilter}:${activeTab}`,
   });
   const activitySubtabKey = `${kindFilter}:${activeTab}`;
-  const { isSubtabLoading, triggerSubtabSkeleton } =
-    useSubtabTransition(activitySubtabKey);
+  const { isSubtabLoading, triggerSubtabSkeleton } = useSubtabTransition(
+    activitySubtabKey,
+    {
+      onRateLimited: () =>
+        showToast("Tunggu 1 detik sebelum ganti tab.", "info"),
+    },
+  );
 
   function selectActivityTab(nextTab: ActivityTab) {
-    triggerSubtabSkeleton(`${kindFilter}:${nextTab}`);
+    if (!triggerSubtabSkeleton(`${kindFilter}:${nextTab}`)) return;
     setActiveTab(nextTab);
   }
 
   function selectKindFilter(nextFilter: ActivityFilter) {
-    triggerSubtabSkeleton(`${nextFilter}:all`);
+    if (!triggerSubtabSkeleton(`${nextFilter}:all`)) return;
     setKindFilter(nextFilter);
     setActiveTab("all");
   }
@@ -213,7 +219,15 @@ export function Activity() {
     Boolean(query.trim()) || kindFilter !== "all" || activeTab !== "all";
 
   return (
-    <ProductShell title="Aktivitas pribadi" active="settings">
+    <ProductShell
+      title="Aktivitas pribadi"
+      active="settings"
+      documentTitle={
+        query.trim()
+          ? formatSearchTitle(query, "Aktivitas")
+          : formatPageTitle("Aktivitas")
+      }
+    >
       <section className="feed-surface laporan-surface">
         <DirectoryToolbar<ActivityFilter, ActivityTab>
           query={query}

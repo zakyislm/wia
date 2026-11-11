@@ -4,12 +4,9 @@ import { useSearchParams } from "next/navigation";
 import { useDemo } from "@/features/auth/DemoProvider";
 import { ProductShell } from "@/components/layout/ProductShell";
 import { PostCard } from "@/features/posts/PostCard";
-import {
-  LazyLoadSentinel,
-  useLazySlice,
-  useSubtabTransition,
-} from "@/components/ui/LazyFeed";
+import { LazyLoadSentinel, useLazySlice, useSubtabTransition } from "@/components/ui/LazyFeed";
 import { SkeletonPostList } from "@/components/ui/Skeleton";
+import { formatPageTitle, formatSearchTitle } from "@/lib/title";
 import {
   ExploreTopicsBar,
   ExploreSearchBar,
@@ -79,7 +76,7 @@ export function sortTopicPosts(
 }
 
 export function TopicDetail({ slug }: { slug: string }) {
-  const { posts } = useDemo();
+  const { posts, showToast } = useDemo();
   const searchParams = useSearchParams();
   const queryParam = searchParams.get("q") || "";
   const [subtab, setSubtab] = useState<TopicSubtab>("semua");
@@ -121,14 +118,24 @@ export function TopicDetail({ slug }: { slug: string }) {
     batchSize: 4,
     resetKey: `${cleanSlug}:${subtab}`,
   });
-  const { isSubtabLoading, triggerSubtabSkeleton } =
-    useSubtabTransition(subtab);
+  const { isSubtabLoading, triggerSubtabSkeleton } = useSubtabTransition(
+    subtab,
+    {
+      onRateLimited: () =>
+        showToast("Tunggu 1 detik sebelum ganti tab.", "info"),
+    },
+  );
 
   return (
     <ProductShell
       active="explore"
       hideHeader
       title={topicName}
+      documentTitle={
+        queryParam.trim()
+          ? formatSearchTitle(queryParam, topicName)
+          : formatPageTitle(topicName)
+      }
       searchQuery={queryParam}
     >
       <section className="feed-surface explore-surface">
@@ -147,7 +154,7 @@ export function TopicDetail({ slug }: { slug: string }) {
               role="tab"
               aria-selected={subtab === tab.id}
               onClick={() => {
-                triggerSubtabSkeleton(tab.id);
+                if (!triggerSubtabSkeleton(tab.id)) return;
                 setSubtab(tab.id);
                 if (tab.id === "terbaru") {
                   setNowMs(Date.now());

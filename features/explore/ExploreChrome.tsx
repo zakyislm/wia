@@ -1,8 +1,10 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useDemo } from "@/features/auth/DemoProvider";
 import { useSearchModal } from "@/components/layout/ProductShell";
+import { consumePageSwitchSlot } from "@/lib/navigationGuard";
 import {
   QuickSearchModal,
   SearchTriggerButton,
@@ -12,6 +14,8 @@ import { defaultTopics } from "@/components/selectors/TopicSelectorModal";
 /** Horizontal scrollable topic bar shared across /explore and /explore/topics/[slug]. */
 export function ExploreTopicsBar({ activeSlug }: { activeSlug?: string }) {
   const router = useRouter();
+  const pathname = usePathname() || "/explore";
+  const { showToast } = useDemo();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
@@ -53,6 +57,10 @@ export function ExploreTopicsBar({ activeSlug }: { activeSlug?: string }) {
 
   const handlePillClick = (href: string) => {
     if (hasMovedRef.current) return;
+    if (!consumePageSwitchSlot(pathname, href)) {
+      showToast("Tunggu 1 detik sebelum pindah halaman.", "info");
+      return;
+    }
     router.push(href);
   };
 

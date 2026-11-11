@@ -15,7 +15,8 @@ import { SkeletonPostList } from "@/components/ui/Skeleton";
 import { ChevronDown, Check } from "lucide-react";
 
 export function Feed() {
-  const { posts, user, following, feedScroll, workspace } = useDemo();
+  const { posts, user, following, feedScroll, workspace, showToast } =
+    useDemo();
   useEffect(() => {
     window.scrollTo(0, feedScroll.current);
     const save = () => {
@@ -77,10 +78,16 @@ export function Feed() {
     batchSize: 4,
     resetKey: tab,
   });
-  const { isSubtabLoading, triggerSubtabSkeleton } = useSubtabTransition(tab);
+  const { isSubtabLoading, triggerSubtabSkeleton } = useSubtabTransition(tab, {
+    onRateLimited: () =>
+      showToast("Tunggu 1 detik sebelum ganti tab.", "info"),
+  });
 
   function selectTab(nextTab: "foryou" | "following") {
-    triggerSubtabSkeleton(nextTab);
+    if (!triggerSubtabSkeleton(nextTab)) {
+      setTabDropdownOpen(false);
+      return;
+    }
     setTab(nextTab);
     setTabDropdownOpen(false);
   }

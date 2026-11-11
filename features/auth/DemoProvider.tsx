@@ -11,6 +11,7 @@ import {
 import { CheckCircle2, AlertCircle, Info, X } from "lucide-react";
 import { people as seedPeople, seedPosts } from "@/mocks/data";
 import { seedWorkspace } from "@/features/workspace/state";
+import { resetPageSwitchCooldown } from "@/lib/navigationGuard";
 import type { Person, Post } from "@/types/models";
 
 export type ToastVariant = "success" | "error" | "info";
@@ -72,6 +73,7 @@ function useDemoState() {
   const [following, setFollowing] = useState<string[]>([]);
   const user = people.find((person) => person.localKey === userKey);
   function login(key: string) {
+    resetPageSwitchCooldown();
     people.forEach((person) => {
       if (person.image) URL.revokeObjectURL(person.image);
     });
@@ -83,6 +85,7 @@ function useDemoState() {
     setWorkspace(seedWorkspace());
   }
   function logout() {
+    resetPageSwitchCooldown();
     people.forEach((person) => {
       if (person.image) URL.revokeObjectURL(person.image);
     });
@@ -100,6 +103,7 @@ function useDemoState() {
     setWorkspace(seedWorkspace());
   }
   function register(name: string, username: string) {
+    resetPageSwitchCooldown();
     const person: Person = {
       id: "",
       localKey: crypto.randomUUID(),

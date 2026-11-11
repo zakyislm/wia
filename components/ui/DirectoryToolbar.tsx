@@ -44,6 +44,52 @@ export function DirectoryToolbar<
 }) {
   const [filterMenuOpen, setFilterMenuOpen] = useState(false);
   const filterMenuRef = useRef<HTMLDivElement>(null);
+  const [draftQuery, setDraftQuery] = useState(query);
+  const [syncedQuery, setSyncedQuery] = useState(query);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  if (query !== syncedQuery) {
+    setSyncedQuery(query);
+    setDraftQuery(query);
+  }
+
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!query && debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+  }, [query]);
+
+  function handleQueryInput(next: string) {
+    setDraftQuery(next);
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    if (!next) {
+      setSyncedQuery("");
+      onQueryChange("");
+      return;
+    }
+    debounceTimerRef.current = setTimeout(() => {
+      debounceTimerRef.current = null;
+      setSyncedQuery(next);
+      onQueryChange(next);
+    }, 250);
+  }
+
+  function handleClearQuery() {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = null;
+    }
+    setDraftQuery("");
+    setSyncedQuery("");
+    onQueryChange("");
+  }
 
   useEffect(() => {
     if (!filterMenuOpen) return;
@@ -85,15 +131,15 @@ export function DirectoryToolbar<
             type="text"
             aria-label={searchPlaceholder}
             placeholder={searchPlaceholder}
-            value={query}
-            onChange={(e) => onQueryChange(e.target.value)}
+            value={draftQuery}
+            onChange={(e) => handleQueryInput(e.target.value)}
           />
-          {query && (
+          {draftQuery && (
             <button
               type="button"
               className="quick-search-clear-btn"
               aria-label="Hapus pencarian"
-              onClick={() => onQueryChange("")}
+              onClick={handleClearQuery}
             >
               <X size={14} />
             </button>

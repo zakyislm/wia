@@ -82,7 +82,7 @@ const baseNotifItems: NotifItem[] = [
 ];
 
 export function Notifications() {
-  const { workspace, setWorkspace, people } = useDemo();
+  const { workspace, setWorkspace, people, showToast } = useDemo();
   const [tab, setTab] = useState<NotifFilter>("all");
   const [isSelecting, setIsSelecting] = useState(false);
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
@@ -125,10 +125,13 @@ export function Notifications() {
     batchSize: 5,
     resetKey: tab,
   });
-  const { isSubtabLoading, triggerSubtabSkeleton } = useSubtabTransition(tab);
+  const { isSubtabLoading, triggerSubtabSkeleton } = useSubtabTransition(tab, {
+    onRateLimited: () =>
+      showToast("Tunggu 1 detik sebelum ganti tab.", "info"),
+  });
 
   function selectNotifTab(nextTab: NotifFilter) {
-    triggerSubtabSkeleton(nextTab);
+    if (!triggerSubtabSkeleton(nextTab)) return;
     setTab(nextTab);
   }
 

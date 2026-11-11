@@ -13,7 +13,7 @@ export function Login() {
   const [visible, setVisible] = useState(false);
   const [account, setAccount] = useState("alya");
   return (
-    <PublicFrame title="Selamat datang kembali.">
+    <PublicFrame title="Selamat datang kembali." documentTitle="Masuk">
       <p className="muted">Satu ruang untuk suara dan perubahan.</p>
       <form
         onSubmit={(event) => {

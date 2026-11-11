@@ -1,17 +1,25 @@
 "use client";
 import Image from "next/image";
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
+import { formatPageTitle } from "@/lib/title";
 
 export function PublicFrame({
   title,
+  documentTitle,
   children,
   wide = false,
 }: {
   title: string;
+  documentTitle?: string;
   children: ReactNode;
   wide?: boolean;
 }) {
+  const resolvedDocTitle = formatPageTitle(documentTitle ?? title);
+  useEffect(() => {
+    document.title = resolvedDocTitle;
+  }, [resolvedDocTitle]);
+
   return (
     <div className="public-surface">
       <main className="auth-page">

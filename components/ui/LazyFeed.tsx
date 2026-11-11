@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState, type RefObject } from "react";
+import { SUBTAB_SWITCH_COOLDOWN_MS } from "@/lib/navigationGuard";
 import {
   SkeletonActivityRow,
   SkeletonNotificationRow,
@@ -86,9 +87,24 @@ export function useLazySlice<T>(
  * Brief 1:1 grayscale skeleton state when switching subtabs or filters,
  * updating only the content region while outer controls remain static.
  */
-export function useSubtabTransition(activeKey: string, durationMs = 160) {
+export function useSubtabTransition(
+  activeKey: string,
+  options:
+    | number
+    | {
+        durationMs?: number;
+        cooldownMs?: number;
+        onRateLimited?: () => void;
+      } = 160,
+) {
+  const {
+    durationMs = 160,
+    cooldownMs = SUBTAB_SWITCH_COOLDOWN_MS,
+    onRateLimited,
+  } = typeof options === "number" ? { durationMs: options } : options;
   const [pendingKey, setPendingKey] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSwitchAtRef = useRef(0);
 
   useEffect(() => {
     return () => {
@@ -96,14 +112,21 @@ export function useSubtabTransition(activeKey: string, durationMs = 160) {
     };
   }, []);
 
-  function triggerSubtabSkeleton(nextKey: string) {
-    if (nextKey === activeKey) return;
+  function triggerSubtabSkeleton(nextKey: string): boolean {
+    if (nextKey === activeKey) return false;
+    const now = Date.now();
+    if (now - lastSwitchAtRef.current < cooldownMs) {
+      onRateLimited?.();
+      return false;
+    }
+    lastSwitchAtRef.current = now;
     if (timerRef.current) clearTimeout(timerRef.current);
     setPendingKey(nextKey);
     timerRef.current = setTimeout(() => {
       timerRef.current = null;
       setPendingKey(null);
     }, durationMs);
+    return true;
   }
 
   return {

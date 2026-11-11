@@ -1,13 +1,15 @@
 "use client";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   createContext,
   useContext,
   useState,
   useEffect,
+  useLayoutEffect,
   useRef,
+  type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from "react";
 import {
@@ -39,6 +41,12 @@ import { CreateDropdown } from "@/components/layout/CreateDropdown";
 import { Avatar } from "@/components/ui/Avatar";
 import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { Button } from "@/components/ui/Button";
+import { consumePageSwitchSlot } from "@/lib/navigationGuard";
+import { formatPageTitle, formatSearchTitle } from "@/lib/title";
+
+let activeDocTitleToken = 0;
+const useBrowserLayoutEffect =
+  typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 interface SearchModalContextValue {
   openSearch: () => void;
@@ -67,6 +75,7 @@ export function ProductShell({
   searchQuery = "",
   backHref,
   backLabel = "Kembali",
+  documentTitle,
 }: {
   title?: ReactNode;
   children: ReactNode;
@@ -86,11 +95,29 @@ export function ProductShell({
   searchQuery?: string;
   backHref?: string;
   backLabel?: string;
+  documentTitle?: string;
 }) {
   const trimmedSearchQuery = searchQuery.trim();
   const hasActiveSearch = Boolean(trimmedSearchQuery);
-  const { people, user, following, setFollowing, logout } = useDemo();
+  const { people, user, following, setFollowing, logout, showToast } = useDemo();
+  const pathname = usePathname() || "/";
+  const [routePathname] = useState(pathname);
+  const shellRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+
+  function handleNavClick(
+    event: ReactMouseEvent<HTMLAnchorElement>,
+    href: string,
+    afterAllow?: () => void,
+  ) {
+    if (!consumePageSwitchSlot(pathname, href)) {
+      event.preventDefault();
+      afterAllow?.();
+      showToast("Tunggu 1 detik sebelum pindah halaman.", "info");
+      return;
+    }
+    afterAllow?.();
+  }
   const [composerMode, setComposerMode] = useState<"post" | "report" | null>(null);
   const [searchModal, setSearchModal] = useState(false);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
@@ -120,6 +147,36 @@ export function ProductShell({
                     : active === "settings"
                       ? "Pengaturan"
                       : "KAVI";
+
+  const resolvedDocTitle =
+    documentTitle ??
+    (active === "explore" && trimmedSearchQuery
+      ? formatSearchTitle(trimmedSearchQuery)
+      : formatPageTitle(mobileTitle));
+
+  useBrowserLayoutEffect(() => {
+    if (!user) return;
+    if (pathname !== routePathname) return;
+    const shellEl = shellRef.current;
+    if (shellEl && window.getComputedStyle(shellEl).display === "none") return;
+
+    const ownerToken = ++activeDocTitleToken;
+    const syncTitle = () => {
+      if (activeDocTitleToken !== ownerToken) return;
+      if (shellEl && window.getComputedStyle(shellEl).display === "none") return;
+      if (document.title !== resolvedDocTitle) {
+        document.title = resolvedDocTitle;
+      }
+    };
+    syncTitle();
+    const observer = new MutationObserver(syncTitle);
+    observer.observe(document.head, {
+      childList: true,
+      characterData: true,
+      subtree: true,
+    });
+    return () => observer.disconnect();
+  }, [user, resolvedDocTitle, pathname, routePathname]);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -168,6 +225,7 @@ export function ProductShell({
       }}
     >
     <div
+      ref={shellRef}
       className={`product ${wide ? "product--messages" : ""} ${!showRightSidebar ? "product--no-support" : ""} ${hasActiveSearch ? "product--search-active" : ""}`.trim()}
     >
       <a className="skip-link" href="#main-content">
@@ -175,7 +233,12 @@ export function ProductShell({
       </a>
       <aside className="sidebar">
         <div className="sidebar-center">
-          <Link href="/home" className="wordmark" aria-label="KAVI Beranda">
+          <Link
+            href="/home"
+            className="wordmark"
+            aria-label="KAVI Beranda"
+            onClick={(e) => handleNavClick(e, "/home")}
+          >
             <Image
               src="/kavi.png"
               alt="KAVI"
@@ -198,6 +261,7 @@ export function ProductShell({
                       : undefined
                   }
                   className={`nav-item ${href === `/${active === "timeline" ? "laporan" : active}` ? "active" : ""} nav-group-${index}`}
+                  onClick={(e) => handleNavClick(e, href)}
                 >
                   <Icon />
                   <span>{label}</span>
@@ -212,6 +276,7 @@ export function ProductShell({
                 aria-current={
                   active === "tugas" || active === "agency" ? "page" : undefined
                 }
+                onClick={(e) => handleNavClick(e, "/tugas")}
               >
                 <FileExclamationPoint />
                 <span>Tugas</span>
@@ -231,7 +296,11 @@ export function ProductShell({
                 href="/profile/@me"
                 role="menuitem"
                 className="sidebar-account-menu-item"
-                onClick={() => setAccountMenuOpen(false)}
+                onClick={(e) =>
+                  handleNavClick(e, "/profile/@me", () =>
+                    setAccountMenuOpen(false),
+                  )
+                }
               >
                 <UserRound size={18} strokeWidth={1.8} />
                 <span>Profil</span>
@@ -240,7 +309,11 @@ export function ProductShell({
                 href="/settings"
                 role="menuitem"
                 className="sidebar-account-menu-item"
-                onClick={() => setAccountMenuOpen(false)}
+                onClick={(e) =>
+                  handleNavClick(e, "/settings", () =>
+                    setAccountMenuOpen(false),
+                  )
+                }
               >
                 <Settings size={18} strokeWidth={1.8} />
                 <span>Pengaturan</span>
@@ -276,7 +349,9 @@ export function ProductShell({
                 if (isCompactSidebar) {
                   e.preventDefault();
                   setAccountMenuOpen((prev) => !prev);
+                  return;
                 }
+                handleNavClick(e, "/profile/@me");
               }}
             >
               <Avatar name={user.name} src={user.image} />
@@ -306,6 +381,7 @@ export function ProductShell({
                 href={backHref}
                 className="mobile-topbar-back"
                 aria-label={backLabel}
+                onClick={(e) => handleNavClick(e, backHref)}
               >
                 <ArrowLeft size={20} strokeWidth={2} />
               </Link>
@@ -314,6 +390,7 @@ export function ProductShell({
                 href="/home"
                 className="mobile-topbar-logo"
                 aria-label="KAVI Beranda"
+                onClick={(e) => handleNavClick(e, "/home")}
               >
                 <Image
                   src="/kavi.png"
@@ -334,6 +411,7 @@ export function ProductShell({
               className={`mobile-topbar-bell ${active === "notifications" ? "active" : ""}`}
               aria-label="Notifikasi"
               aria-current={active === "notifications" ? "page" : undefined}
+              onClick={(e) => handleNavClick(e, "/notifications")}
             >
               <Bell size={22} strokeWidth={1.9} />
             </Link>
@@ -363,7 +441,11 @@ export function ProductShell({
                     href="/profile/@me"
                     role="menuitem"
                     className="sidebar-account-menu-item"
-                    onClick={() => setMobileAccountMenuOpen(false)}
+                    onClick={(e) =>
+                      handleNavClick(e, "/profile/@me", () =>
+                        setMobileAccountMenuOpen(false),
+                      )
+                    }
                   >
                     <UserRound size={18} strokeWidth={1.8} />
                     <span>Profil</span>
@@ -372,7 +454,11 @@ export function ProductShell({
                     href="/settings"
                     role="menuitem"
                     className="sidebar-account-menu-item"
-                    onClick={() => setMobileAccountMenuOpen(false)}
+                    onClick={(e) =>
+                      handleNavClick(e, "/settings", () =>
+                        setMobileAccountMenuOpen(false),
+                      )
+                    }
                   >
                     <Settings size={18} strokeWidth={1.8} />
                     <span>Pengaturan</span>
@@ -382,7 +468,11 @@ export function ProductShell({
                       href="/tugas"
                       role="menuitem"
                       className="sidebar-account-menu-item"
-                      onClick={() => setMobileAccountMenuOpen(false)}
+                      onClick={(e) =>
+                        handleNavClick(e, "/tugas", () =>
+                          setMobileAccountMenuOpen(false),
+                        )
+                      }
                     >
                       <FileExclamationPoint size={18} strokeWidth={1.8} />
                       <span>Tugas</span>
@@ -416,6 +506,7 @@ export function ProductShell({
                 className="button button--ghost mobile-bell"
                 href="/notifications"
                 aria-label="Notifikasi"
+                onClick={(e) => handleNavClick(e, "/notifications")}
               >
                 <Bell />
               </Link>
@@ -448,7 +539,12 @@ export function ProductShell({
                   <Avatar name={person.name} src={person.image} />
                   <div>
                     <strong>
-                      <Link href={`/profile/${person.localKey}`}>
+                      <Link
+                        href={`/profile/${person.localKey}`}
+                        onClick={(e) =>
+                          handleNavClick(e, `/profile/${person.localKey}`)
+                        }
+                      >
                         {person.name}
                       </Link>
                       <VerifiedBadge role={person.role} size={15} />
@@ -471,8 +567,13 @@ export function ProductShell({
               ))}
           </section>
           <p className="footer-note">
-            <Link href="/settings">Pengaturan</Link> ·{" "}
-            <Link href="/help">Bantuan</Link>
+            <Link href="/settings" onClick={(e) => handleNavClick(e, "/settings")}>
+              Pengaturan
+            </Link>{" "}
+            ·{" "}
+            <Link href="/help" onClick={(e) => handleNavClick(e, "/help")}>
+              Bantuan
+            </Link>
             <br />
             KAVI · Ruang bersama untuk perubahan.
             <br />© 2026 KAVI · Konten contoh
@@ -485,6 +586,7 @@ export function ProductShell({
           aria-label="Beranda"
           aria-current={active === "home" ? "page" : undefined}
           className={active === "home" ? "active" : ""}
+          onClick={(e) => handleNavClick(e, "/home")}
         >
           <Home />
         </Link>
@@ -493,6 +595,7 @@ export function ProductShell({
           aria-label="Jelajah"
           aria-current={active === "explore" ? "page" : undefined}
           className={active === "explore" ? "active" : ""}
+          onClick={(e) => handleNavClick(e, "/explore")}
         >
           <Search />
         </Link>
@@ -538,6 +641,7 @@ export function ProductShell({
           aria-label="Obrolan"
           aria-current={active === "messages" ? "page" : undefined}
           className={active === "messages" ? "active" : ""}
+          onClick={(e) => handleNavClick(e, "/messages")}
         >
           <MessagesSquare />
         </Link>
@@ -550,6 +654,7 @@ export function ProductShell({
           className={
             active === "laporan" || active === "timeline" ? "active" : ""
           }
+          onClick={(e) => handleNavClick(e, "/laporan")}
         >
           <Archive />
         </Link>

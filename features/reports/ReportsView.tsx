@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/LazyFeed";
 import { SkeletonPostList } from "@/components/ui/Skeleton";
 import { getEffectiveReportStatus } from "@/features/discovery/filters";
+import { formatPageTitle, formatSearchTitle } from "@/lib/title";
 import type { Person, Post, Role } from "@/types/models";
 
 export type ReportAuthorityFilter = "all" | "government" | "internal";
@@ -162,6 +163,7 @@ export function ReportDirectoryShell<T extends string>({
   emptyFilteredMessage?: string;
   emptyIdleMessage?: string;
 }) {
+  const { showToast } = useDemo();
   const counts = useMemo(
     () => ({
       all: baseReports.length,
@@ -194,16 +196,21 @@ export function ReportDirectoryShell<T extends string>({
   });
 
   const subtabKey = `${String(filterValue)}:${statusTab}`;
-  const { isSubtabLoading, triggerSubtabSkeleton } =
-    useSubtabTransition(subtabKey);
+  const { isSubtabLoading, triggerSubtabSkeleton } = useSubtabTransition(
+    subtabKey,
+    {
+      onRateLimited: () =>
+        showToast("Tunggu 1 detik sebelum ganti tab.", "info"),
+    },
+  );
 
   function handleFilterChange(next: T) {
-    triggerSubtabSkeleton(`${String(next)}:${statusTab}`);
+    if (!triggerSubtabSkeleton(`${String(next)}:${statusTab}`)) return;
     onFilterChange(next);
   }
 
   function handleStatusTabChange(next: ReportStatusTab) {
-    triggerSubtabSkeleton(`${String(filterValue)}:${next}`);
+    if (!triggerSubtabSkeleton(`${String(filterValue)}:${next}`)) return;
     onStatusTabChange(next);
   }
 
@@ -294,7 +301,15 @@ export function ReportsView() {
   );
 
   return (
-    <ProductShell title="Laporan" active="laporan">
+    <ProductShell
+      title="Laporan"
+      active="laporan"
+      documentTitle={
+        query.trim()
+          ? formatSearchTitle(query, "Laporan")
+          : formatPageTitle("Laporan")
+      }
+    >
       <ReportDirectoryShell<ReportAuthorityFilter>
         baseReports={baseReports}
         query={query}

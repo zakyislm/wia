@@ -11,7 +11,10 @@ const plusJakartaSans = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Kavi",
+  title: {
+    default: "Kavi",
+    template: "Kavi - %s",
+  },
   description: "Platform Laporan & Diskusi Publik",
 };
 

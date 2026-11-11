@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useDemo } from "@/features/auth/DemoProvider";
 import { ProductShell } from "@/components/layout/ProductShell";
 import { matchesJurisdiction } from "@/lib/regions";
+import { formatPageTitle, formatSearchTitle } from "@/lib/title";
 import {
   ReportDirectoryShell,
   matchesReportAuthority,
@@ -111,7 +112,15 @@ export function TasksView() {
     : `Cakupan wilayah: ${user?.region || "Indonesia"} · ${baseReports.length} tugas`;
 
   return (
-    <ProductShell title="Tugas" active="tugas">
+    <ProductShell
+      title="Tugas"
+      active="tugas"
+      documentTitle={
+        query.trim()
+          ? formatSearchTitle(query, "Tugas")
+          : formatPageTitle("Tugas")
+      }
+    >
       {!hasAccess ? (
         <section className="feed-surface">
           <div className="empty-state">

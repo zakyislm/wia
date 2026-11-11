@@ -1,6 +1,9 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import { Signup } from "@/features/auth/AuthForms";
 import { PageSkeleton } from "@/components/ui/Skeleton";
+
+export const metadata: Metadata = { title: "Daftar" };
 
 export default function Page() {
   return (

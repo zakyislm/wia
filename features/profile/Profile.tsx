@@ -44,6 +44,7 @@ import {
 import { countPublicPosts } from "@/components/user/UserHoverCard";
 import { LocationSelectorModal } from "@/components/selectors/LocationSelectorModal";
 import { photoError } from "@/lib/validation";
+import { formatPageTitle, formatSearchTitle } from "@/lib/title";
 import type { Person, Post, Reply } from "@/types/models";
 
 function formatShortTime(timestamp?: number): string {
@@ -485,17 +486,28 @@ export function Profile({ profileKey }: { profileKey?: string }) {
   });
 
   const profileSubtabKey = `${activeTab}:${visibility}`;
-  const { isSubtabLoading, triggerSubtabSkeleton } =
-    useSubtabTransition(profileSubtabKey);
+  const { isSubtabLoading, triggerSubtabSkeleton } = useSubtabTransition(
+    profileSubtabKey,
+    {
+      onRateLimited: () =>
+        showToast("Tunggu 1 detik sebelum ganti tab.", "info"),
+    },
+  );
 
   function handleSelectProfileTab(nextTab: string) {
-    triggerSubtabSkeleton(`${nextTab}:${visibility}`);
+    if (!triggerSubtabSkeleton(`${nextTab}:${visibility}`)) {
+      setVisibilityMenuOpen(false);
+      return;
+    }
     setTab(nextTab);
     setVisibilityMenuOpen(false);
   }
 
   function handleSelectVisibility(nextVis: "public" | "anonymous") {
-    triggerSubtabSkeleton(`${activeTab}:${nextVis}`);
+    if (!triggerSubtabSkeleton(`${activeTab}:${nextVis}`)) {
+      setVisibilityMenuOpen(false);
+      return;
+    }
     setVisibility(nextVis);
     setVisibilityMenuOpen(false);
   }
@@ -586,7 +598,17 @@ export function Profile({ profileKey }: { profileKey?: string }) {
     { key: "tagged", label: "Ditandai" },
   ];
   return (
-    <ProductShell title="Profil" active="profile">
+    <ProductShell
+      title="Profil"
+      active="profile"
+      documentTitle={
+        person
+          ? profileQuery.trim()
+            ? formatSearchTitle(profileQuery, person.name)
+            : formatPageTitle(person.name)
+          : formatPageTitle("Profil Tidak Ditemukan")
+      }
+    >
       <section className="feed-surface profile-surface">
         {person ? (
           <>

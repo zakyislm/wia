@@ -14,6 +14,7 @@ import { Avatar } from "@/components/ui/Avatar";
 import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { useDemo } from "@/features/auth/DemoProvider";
 import { defaultTopics } from "@/components/selectors/TopicSelectorModal";
+import { useDebouncedValue } from "@/lib/useDebouncedValue";
 
 import type { Person, Post, Topic } from "@/types/models";
 
@@ -181,20 +182,23 @@ export function QuickSearchModal({
     router.push(`/explore?q=${encodeURIComponent(searchVal.trim())}`);
   }
 
-  // Filtered results when user types
+  // Filtered results when user types (debounced)
+  const debouncedQuery = useDebouncedValue(query, 250);
+  const activeFilterQuery = query === "" ? "" : debouncedQuery;
+
   const filteredPeople = useMemo(
-    () => filterQuickSearchPeople(people, query),
-    [people, query],
+    () => filterQuickSearchPeople(people, activeFilterQuery),
+    [people, activeFilterQuery],
   );
 
   const filteredTopics = useMemo(
-    () => filterQuickSearchTopics(defaultTopics, query),
-    [query],
+    () => filterQuickSearchTopics(defaultTopics, activeFilterQuery),
+    [activeFilterQuery],
   );
 
   const filteredPosts = useMemo(
-    () => filterQuickSearchPosts(posts, people, query),
-    [posts, people, query],
+    () => filterQuickSearchPosts(posts, people, activeFilterQuery),
+    [posts, people, activeFilterQuery],
   );
 
   if (!isOpen) return null;

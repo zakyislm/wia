@@ -3,7 +3,7 @@ import Link from "next/link";
 import { PublicFrame } from "@/features/auth/PublicFrame";
 export function Help() {
   return (
-    <PublicFrame title="Bantuan & pedoman" wide>
+    <PublicFrame title="Bantuan & pedoman" documentTitle="Bantuan" wide>
       <p className="muted">
         Panduan produk KAVI · Rancangan kebijakan masih memerlukan peninjauan
         pengelola.

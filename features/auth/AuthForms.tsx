@@ -15,7 +15,7 @@ export function Signup() {
   const [visible, setVisible] = useState(false);
   const [error, setError] = useState("");
   return (
-    <PublicFrame title="Bergabung di KAVI">
+    <PublicFrame title="Bergabung di KAVI" documentTitle="Daftar">
       <p className="muted">Mulai percakapan, temukan perubahan.</p>
       <form
         className="auth-form"
@@ -126,6 +126,7 @@ export function Recovery() {
   const [error, setError] = useState("");
   return (
     <PublicFrame
+      documentTitle="Lupa Kata Sandi"
       title={
         step === "expired"
           ? "Tautan kedaluwarsa"

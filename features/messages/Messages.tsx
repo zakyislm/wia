@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element -- Session-only blob URLs cannot use server image optimization. */
 "use client";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState, useRef, useEffect, useMemo } from "react";
 import {
   Search,
@@ -25,24 +25,39 @@ import { VerifiedBadge } from "@/components/ui/VerifiedBadge";
 import { EmojiSelectorModal } from "@/components/selectors/EmojiSelectorModal";
 import { useSubtabTransition } from "@/components/ui/LazyFeed";
 import { SkeletonMessageList } from "@/components/ui/Skeleton";
+import { consumePageSwitchSlot } from "@/lib/navigationGuard";
+import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import { mediaError } from "@/lib/validation";
+import { formatPageTitle, formatSearchTitle } from "@/lib/title";
 
 type ChatSubtab = "all" | "unread" | "sent";
 
 export function Messages({ selectedKey }: { selectedKey?: string }) {
   const { user, people, workspace, setWorkspace, following, setFollowing, showToast } =
     useDemo();
+  const pathname = usePathname() || "/messages";
   const router = useRouter();
   const [query, setQuery] = useState("");
+  const debouncedQuery = useDebouncedValue(query, 250);
+  const activeQuery = query === "" ? "" : debouncedQuery;
   const [subtab, setSubtab] = useState<ChatSubtab>("all");
-  const { isSubtabLoading, triggerSubtabSkeleton } = useSubtabTransition(subtab);
+  const { isSubtabLoading, triggerSubtabSkeleton } = useSubtabTransition(
+    subtab,
+    {
+      onRateLimited: () =>
+        showToast("Tunggu 1 detik sebelum ganti tab.", "info"),
+    },
+  );
   const [newMessage, setNew] = useState(false);
 
   function selectChatSubtab(nextTab: ChatSubtab) {
-    triggerSubtabSkeleton(nextTab);
+    if (!triggerSubtabSkeleton(nextTab)) return;
     setSubtab(nextTab);
   }
   const [recipientQuery, setRecipientQuery] = useState("");
+  const debouncedRecipientQuery = useDebouncedValue(recipientQuery, 200);
+  const activeRecipientQuery =
+    recipientQuery === "" ? "" : debouncedRecipientQuery;
   const [text, setText] = useState("");
   const [images, setImages] = useState<string[]>([]);
   const [error, setError] = useState("");
@@ -95,6 +110,7 @@ export function Messages({ selectedKey }: { selectedKey?: string }) {
   }, [conversations]);
 
   const filtered = useMemo(() => {
+    const cleanQuery = activeQuery.toLowerCase();
     return conversations.filter((item) => {
       if (subtab === "unread" && !item.unread) return false;
       if (subtab === "sent" && !item.messages.some((m) => m.outgoing)) {
@@ -103,9 +119,9 @@ export function Messages({ selectedKey }: { selectedKey?: string }) {
       const person = people.find((p) => p.localKey === item.partnerKey);
       return `${person?.name ?? ""} ${person?.username ?? ""} ${item.messages.at(-1)?.text ?? ""}`
         .toLowerCase()
-        .includes(query.toLowerCase());
+        .includes(cleanQuery);
     });
-  }, [conversations, subtab, people, query]);
+  }, [conversations, subtab, people, activeQuery]);
 
   function open(partnerKey: string) {
     if (!workspace.conversations.some((item) => item.partnerKey === partnerKey))
@@ -189,7 +205,18 @@ export function Messages({ selectedKey }: { selectedKey?: string }) {
     : false;
 
   return (
-    <ProductShell title="Obrolan" active="messages" wide>
+    <ProductShell
+      title="Obrolan"
+      active="messages"
+      wide
+      documentTitle={
+        selected && partner
+          ? formatPageTitle(`Obrolan dengan ${partner.name}`)
+          : activeQuery.trim()
+            ? formatSearchTitle(activeQuery, "Obrolan")
+            : formatPageTitle("Obrolan")
+      }
+    >
       <div className={`messaging ${selectedKey ? "has-conversation" : ""}`}>
         {/* Left Pane: Conversation List */}
         <section className="conversation-list" aria-label="Daftar percakapan">
@@ -284,6 +311,20 @@ export function Messages({ selectedKey }: { selectedKey?: string }) {
                       className={`conversation-item ${selectedKey === item.localKey ? "selected" : ""} ${item.unread ? "is-unread" : ""}`}
                       href={`/messages/${item.localKey}`}
                       key={item.localKey}
+                      onClick={(e) => {
+                        if (
+                          !consumePageSwitchSlot(
+                            pathname,
+                            `/messages/${item.localKey}`,
+                          )
+                        ) {
+                          e.preventDefault();
+                          showToast(
+                            "Tunggu 1 detik sebelum pindah halaman.",
+                            "info",
+                          );
+                        }
+                      }}
                     >
                       <span
                         className={`chat-unread-dot ${item.unread ? "visible" : ""}`}
@@ -311,7 +352,7 @@ export function Messages({ selectedKey }: { selectedKey?: string }) {
                 {!filtered.length && (
                   <div className="empty-state chat-list-empty">
                     <p>
-                      {query
+                      {activeQuery
                         ? "Tidak ada percakapan yang cocok."
                         : subtab === "unread"
                           ? "Tidak ada pesan yang belum dibaca."
@@ -336,6 +377,15 @@ export function Messages({ selectedKey }: { selectedKey?: string }) {
                     className="chat-back button button--ghost"
                     href="/messages"
                     aria-label="Kembali ke daftar percakapan"
+                    onClick={(e) => {
+                      if (!consumePageSwitchSlot(pathname, "/messages")) {
+                        e.preventDefault();
+                        showToast(
+                          "Tunggu 1 detik sebelum pindah halaman.",
+                          "info",
+                        );
+                      }
+                    }}
                   >
                     <ArrowLeft size={20} />
                   </Link>
@@ -595,7 +645,7 @@ export function Messages({ selectedKey }: { selectedKey?: string }) {
                   person.localKey !== user?.localKey &&
                   `${person.name} ${person.username}`
                     .toLowerCase()
-                    .includes(recipientQuery.toLowerCase()),
+                    .includes(activeRecipientQuery.toLowerCase()),
               )
               .map((person) => (
                 <button
@@ -618,7 +668,7 @@ export function Messages({ selectedKey }: { selectedKey?: string }) {
                 person.localKey !== user?.localKey &&
                 `${person.name} ${person.username}`
                   .toLowerCase()
-                  .includes(recipientQuery.toLowerCase()),
+                  .includes(activeRecipientQuery.toLowerCase()),
             ) && <p className="muted">Tidak ada akun yang cocok.</p>}
           </div>
         </Dialog>

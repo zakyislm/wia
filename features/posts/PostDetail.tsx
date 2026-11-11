@@ -5,6 +5,7 @@ import { useDemo } from "@/features/auth/DemoProvider";
 import { ProductShell } from "@/components/layout/ProductShell";
 import { PostCard } from "./PostCard";
 import { CommentThread } from "./CommentThread";
+import { formatPageTitle, formatPostPageTitle } from "@/lib/title";
 
 export function PostDetail({
   postKey,
@@ -17,12 +18,27 @@ export function PostDetail({
   const post = posts.find(
     (item) => item.localKey === postKey && !item.isDeleted,
   );
+  const author = post
+    ? people.find((person) => person.localKey === post.authorKey)
+    : undefined;
+  const branchReply =
+    post && branchKey
+      ? post.replies.find((reply) => reply.localKey === branchKey)
+      : undefined;
+  const docTitle = post
+    ? formatPostPageTitle(
+        post,
+        author?.name,
+        branchKey ? (branchReply?.content ?? "") : undefined,
+      )
+    : formatPageTitle("Postingan Tidak Ditemukan");
   const backHref = branchKey ? `/posts/${postKey}` : "/home";
   const backLabel = branchKey ? "Kembali ke postingan" : "Kembali ke beranda";
   return (
     <ProductShell
       hideHeader
       title="Post"
+      documentTitle={docTitle}
       backHref={backHref}
       backLabel={backLabel}
     >

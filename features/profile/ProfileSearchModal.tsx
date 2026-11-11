@@ -5,6 +5,7 @@ import { Search, X } from "lucide-react";
 import { Avatar } from "@/components/ui/Avatar";
 import { Dialog } from "@/components/ui/Dialog";
 import { formatDraftTime } from "@/features/posts/draftsStorage";
+import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import type { Person, Post, Reply } from "@/types/models";
 
 export interface ProfileSearchMatches {
@@ -250,9 +251,12 @@ export function ProfileSearchModal({
     }
   }, [isOpen, initialQuery]);
 
+  const debouncedQuery = useDebouncedValue(query, 250);
+  const activeFilterQuery = query === "" ? "" : debouncedQuery;
+
   const matches = useMemo(
-    () => searchUserProfileContent(posts, person, query, own),
-    [posts, person, query, own],
+    () => searchUserProfileContent(posts, person, activeFilterQuery, own),
+    [posts, person, activeFilterQuery, own],
   );
 
   if (!isOpen) return null;

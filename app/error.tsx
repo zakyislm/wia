@@ -1,7 +1,14 @@
 "use client";
 import Link from "next/link";
+import { useEffect } from "react";
 import { Button } from "@/components/ui/Button";
+import { formatPageTitle } from "@/lib/title";
+
 export default function Error({ retry }: { retry: () => void }) {
+  useEffect(() => {
+    document.title = formatPageTitle("Terjadi Kendala");
+  }, []);
+
   return (
     <main className="auth-page">
       <section className="auth-card stack" role="alert">
